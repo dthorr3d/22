@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sectorisation & Pré-imprégnation</title>
+<style>
+:root{
+  --bg:#f4f6f9;--sf:#ffffff;--sf2:#f8fafc;--tx:#0f172a;--mu:#64748b;--bd:#e2e8f0;--bd2:#cbd5e1;
+  --ac:#0284c7;--ac-h:#0369a1;--ac-bg:#e0f2fe;--ac-tx:#0369a1;
+  --ok:#059669;--ok-bg:#d1fae5;--wa:#d97706;--wa-bg:#fef3c7;--er:#dc2626;--er-bg:#fee2e2;
+  --sh:0 1px 3px rgba(15,23,42,.05),0 1px 2px rgba(15,23,42,.03);
+  --sh-md:0 4px 12px rgba(15,23,42,.07);
+  --r:12px;--rs:8px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0b111a;--sf:#131c28;--sf2:#192433;--tx:#f1f5f9;--mu:#94a3b8;--bd:#233042;--bd2:#334155;
+  --ac:#38bdf8;--ac-h:#7dd3fc;--ac-bg:rgba(56,189,248,.14);--ac-tx:#7dd3fc;
+  --ok:#34d399;--ok-bg:rgba(52,211,153,.14);--wa:#fbbf24;--wa-bg:rgba(251,191,36,.14);--er:#f87171;--er-bg:rgba(248,113,113,.14);
+  --sh:0 1px 3px rgba(0,0,0,.3);--sh-md:0 6px 16px rgba(0,0,0,.4);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14.5px/1.5 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+
+/* Header */
+header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;padding:.85rem 1.5rem;background:var(--sf);border-bottom:1px solid var(--bd);box-shadow:var(--sh)}
+.brand{display:flex;align-items:center;gap:.65rem;margin-right:auto}
+.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--ac),#2563eb);color:#fff;display:grid;place-items:center;box-shadow:0 2px 6px rgba(2,132,199,.3)}
+h1{font-size:1.1rem;margin:0;font-weight:700;letter-spacing:-.01em}
+.sub{font-size:.78rem;color:var(--mu);display:block;font-weight:400}
+.h-acts{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
+
+/* Controls */
+button,select,input{font:inherit;color:inherit}
+button{display:inline-flex;align-items:center;gap:.4rem;background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);padding:.42rem .75rem;font-weight:500;cursor:pointer;transition:all .15s ease}
+button:hover{border-color:var(--bd2);background:var(--sf2)}
+button:active{transform:translateY(1px)}
+button.p{background:var(--ac);border-color:var(--ac);color:#fff;box-shadow:0 1px 2px rgba(2,132,199,.25)}
+button.p:hover{background:var(--ac-h);border-color:var(--ac-h)}
+button.ghost{border-color:transparent;background:transparent;color:var(--mu);padding:.32rem .55rem}
+button.ghost:hover{background:var(--sf2);color:var(--tx)}
+button.danger:hover{background:var(--er-bg);color:var(--er);border-color:transparent}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+input,select{background:var(--sf2);border:1px solid var(--bd);border-radius:var(--rs);padding:.42rem .65rem;min-width:0;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus{border-color:var(--ac);background:var(--sf);box-shadow:0 0 0 3px var(--ac-bg)}
+input[type=number]{width:5.5rem}
+input[type=checkbox]{accent-color:var(--ac);width:15px;height:15px;cursor:pointer}
+
+/* Navigation */
+.nav-wrap{background:var(--sf);border-bottom:1px solid var(--bd);padding:.55rem 1.5rem}
+nav{display:inline-flex;flex-wrap:wrap;gap:.3rem;background:var(--bg);padding:.28rem;border-radius:10px;border:1px solid var(--bd)}
+nav button{border:0;background:transparent;color:var(--mu);padding:.42rem .9rem;border-radius:7px;font-weight:500}
+nav button:hover{color:var(--tx);background:transparent}
+nav button.on{background:var(--sf);color:var(--ac);font-weight:600;box-shadow:var(--sh)}
+.cnt{font-size:.75rem;padding:.05rem .42rem;border-radius:99px;background:var(--bd);color:var(--tx);font-weight:600}
+nav button.on .cnt{background:var(--ac-bg);color:var(--ac-tx)}
+
+/* Layout & Cards */
+main{max-width:1440px;margin:0 auto;padding:1.25rem 1.5rem 3rem}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:1.15rem;box-shadow:var(--sh);transition:box-shadow .2s,border-color .15s}
+.card h2{font-size:1rem;font-weight:650;margin:0 0 .85rem;display:flex;align-items:center;gap:.5rem;letter-spacing:-.01em}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.15rem}
+.row{display:flex;flex-wrap:wrap;gap:.55rem;align-items:center;margin-bottom:.65rem}
+.row:last-child{margin-bottom:0}
+.mu{color:var(--mu);font-size:.83rem}.er{color:var(--er)}.wa{color:var(--wa)}.ok{color:var(--ok)}
+
+/* Dashboard KPIs */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.25rem}
+.kpi{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:1rem 1.15rem;box-shadow:var(--sh)}
+.kpi-lbl{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu);font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.kpi-val{font-size:1.75rem;font-weight:750;letter-spacing:-.02em;margin:.3rem 0 .2rem;line-height:1.1}
+.kpi-sub{font-size:.8rem;color:var(--mu)}
+.dash-bar-row{margin-bottom:.85rem}
+.dash-bar-row:last-child{margin-bottom:0}
+
+/* Badges & Pills */
+.badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.76rem;font-weight:600;padding:.18rem .55rem;border-radius:99px;background:var(--sf2);border:1px solid var(--bd);color:var(--mu)}
+.badge.ac{background:var(--ac-bg);color:var(--ac-tx);border-color:transparent}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.badge.wa{background:var(--wa-bg);color:var(--wa);border-color:transparent}
+.badge.er{background:var(--er-bg);color:var(--er);border-color:transparent}
+
+/* Tables */
+.tw{overflow-x:auto;border:1px solid var(--bd);border-radius:var(--rs)}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th{background:var(--sf2);color:var(--mu);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;padding:.55rem .7rem;border-bottom:1px solid var(--bd);text-align:left}
+td{padding:.55rem .7rem;border-bottom:1px solid var(--bd);text-align:left}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--sf2)}
+
+/* Sectorisation Workspace */
+.lay{display:grid;grid-template-columns:300px 1fr;gap:1.25rem;align-items:start}
+@media(max-width:860px){.lay{grid-template-columns:1fr}}
+.sticky-col{position:sticky;top:4.8rem;max-height:calc(100vh - 6rem);display:flex;flex-direction:column}
+.scroll-zone{overflow-y:auto;padding-right:.2rem;margin-top:.5rem}
+.zone{min-height:4rem;border-radius:var(--rs);padding:.35rem;border:1.5px dashed transparent;transition:all .15s}
+.zone.empty{border-color:var(--bd2);background:var(--sf2);display:grid;place-items:center;text-align:center;padding:1.2rem}
+.zone.over{border-color:var(--ac);background:var(--ac-bg)}
+.chip,.it{display:flex;justify-content:space-between;align-items:center;gap:.5rem;border:1px solid var(--bd);border-radius:var(--rs);padding:.48rem .65rem;margin:.35rem 0;background:var(--sf);box-shadow:0 1px 2px rgba(0,0,0,.02);cursor:grab;transition:border-color .15s,transform .1s,box-shadow .15s}
+.chip:hover,.it:hover{border-color:var(--ac);box-shadow:var(--sh)}
+.chip:active,.it:active{cursor:grabbing}
+.it{flex-wrap:wrap;background:var(--sf2)}
+.secs{display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:1rem;align-items:start}
+
+/* Collapsible Sector Cards */
+.sec-card{padding:.9rem 1.05rem}
+.sec-card.collapsed{padding:.7rem 1rem}
+.sec-card.over{border-color:var(--ac);background:var(--ac-bg)}
+.chev{width:26px;height:26px;padding:0;justify-content:center;border-radius:6px;flex-shrink:0}
+.chev svg{transition:transform .2s ease}
+.sec-card.collapsed .chev svg{transform:rotate(-90deg)}
+.sec-compact{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-top:.45rem;padding-top:.45rem;border-top:1px solid var(--bd)}
+
+/* Progress Bar & Legend */
+.bar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--bd);margin:.65rem 0 .45rem}
+.bar.sm{height:6px;margin:0;flex:1;min-width:60px}
+.bar i{display:block;border-right:1px solid var(--sf);transition:width .25s ease}
+.s0{background:#64748b}.s1{background:var(--ac)}.s2{background:#8b5cf6}
+.leg{display:flex;gap:.8rem;font-size:.76rem;color:var(--mu);margin-bottom:.4rem}
+.leg span{display:inline-flex;align-items:center;gap:.3rem}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.big{font-size:1.65rem;font-weight:750;letter-spacing:-.02em;line-height:1}
+
+/* Accordions & Alerts */
+details{margin-top:.65rem;border-top:1px solid var(--bd);padding-top:.55rem}
+summary{cursor:pointer;color:var(--mu);font-weight:500;font-size:.85rem;user-select:none;display:flex;align-items:center;gap:.35rem}
+summary:hover{color:var(--tx)}
+.alert-wa{display:flex;align-items:center;gap:.45rem;background:var(--wa-bg);color:var(--wa);padding:.42rem .65rem;border-radius:var(--rs);font-size:.82rem;font-weight:500;margin-top:.4rem}
+.toolbar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:space-between;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:.75rem 1rem;margin-top:1rem;box-shadow:var(--sh)}
+.search-box{position:relative;display:inline-flex;align-items:center}
+.search-box input{padding-left:2rem}
+.search-box svg{position:absolute;left:.65rem;color:var(--mu);pointer-events:none}
+.rule-box{background:var(--sf2);border:1px solid var(--bd);border-radius:var(--rs);padding:.85rem;margin-bottom:.75rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+    </div>
+    <div>
+      <h1>Sectorisation & Pré-imprégnation</h1>
+      <span class="sub" id="lk">Gestion des surfaces, rotations et dotations</span>
+    </div>
+  </div>
+  <div class="h-acts">
+    <button data-act="link" id="blink" title="Synchroniser avec un fichier local">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Lier un fichier…
+    </button>
+    <button data-act="impcsv">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+      Importer CSV
+    </button>
+    <button data-act="imp">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      JSON
+    </button>
+    <button class="p" data-act="exp">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exporter
+    </button>
+  </div>
+  <input type="file" id="file" accept=".json" hidden>
+  <input type="file" id="csvfile" accept=".csv,.txt" hidden>
+</header>
+<div class="nav-wrap"><nav id="nav" aria-label="Sections"></nav></div>
+<main id="v"></main>
+
+<script>
+const K='sectorisation_v1',CATS={classroom:'Salle de classe',office:'Bureau',sanitary_ext:'Sanitaires externat',sanitary_int:'Sanitaires internat',bedroom:'Chambre',showers:'Douches',canteen:'Self',library:'CDI',gym:'Gymnase',stairs:'Escalier',circulation:'Circulation / Autre'};
+const R=(id,label,cat,when,k,a,b,f)=>({id,label,cat,when,k,a,b,f});
+const DEF=()=>({setup:10,days:5,cls:{c:25,d:15,v:5},rules:[
+R('san_ext','Sanitaires externat','sanitary_ext',null,'rate',1,1,[2,'d']),
+R('san_int','Sanitaires internat','sanitary_int',null,'rate',1,1,[1,'d']),
+R('off_hi','Bureau très fréquenté','office',{traffic:'high'},'rate',3,1,[1,'d']),
+R('off_lo','Bureau faiblement fréquenté','office',{traffic:'low'},'rate',4,1,[1,'d']),
+R('cdi','CDI','library',null,'rate',400,60,[1,'d']),
+R('sm_t','Self midi, carrelage / sol souple','canteen',{floor:'tile'},'rate',200,60,[1,'d']),
+R('sm_f','Self midi, Flotex','canteen',{floor:'flotex'},'rate',200,70,[1,'d']),
+R('ss_t','Self soir, carrelage / sol souple','canteen',{floor:'tile'},'rate',600,90,[1,'d']),
+R('ss_f','Self soir, Flotex','canteen',{floor:'flotex'},'rate',600,90,[1,'d']),
+R('bed','Chambre','bedroom',null,'unit',0,5,[1,'w']),
+R('sho','Douches','showers',null,'unit',0,5,[1,'d']),
+R('g1','Gymnase, dépoussiérage hebdomadaire, balayeuse (SW750)','gym',null,'rate',2300,60,[1,'w']),
+R('g2','Gymnase, dépoussiérage hebdomadaire, manuel','gym',null,'rate',2000,60,[1,'w']),
+R('g3','Gymnase, lavage hebdomadaire, autolaveuse (SC500)','gym',null,'rate',2000,60,[1,'w']),
+R('g4','Gymnase, lavage hebdomadaire, manuel','gym',null,'rate',1500,60,[1,'w']),
+R('stairs','Escalier','stairs',null,'rate',250,60,[1,'d']),
+R('circ','Circulation / Autre','circulation',null,'rate',400,60,[1,'d'])]});
+const DEFM=()=>[
+{id:'f50',label:'Frange EMR 80 50 cm',rules:[{k:'room',c:'san',n:1},{k:'area',c:'~',n:50}]},
+{id:'f30',label:'Frange EMR 80 30 cm',rules:[{k:'unit',c:'classroom',u:'tables',n:10}]},
+{id:'net',label:'Netty',rules:[{k:'unit',c:'san',u:'cuvettes',n:1}]},
+{id:'lav',label:'Lavette microfibre bleue',rules:[{k:'sector',n:0}]},
+{id:'hou',label:'Housse Micro flex',rules:[{k:'sector',n:2}]},
+{id:'fv',label:'Frange vitre microfibre',rules:[{k:'sector',n:3}]},
+{id:'gv',label:'Gant vitre microfibre',rules:[{k:'sector',n:1}]}];
+const fresh=()=>({tabs:['Dashboard','Locaux','Secteurs','Matériel','Paramètres'],b:[],r:[],s:[],p:DEF(),m:DEFM()});
+function norm(){
+ if(!S.m)S.m=DEFM();
+ if(!S.tabs.includes('Dashboard'))S.tabs.unshift('Dashboard');
+ if(!S.tabs.includes('Matériel'))S.tabs.splice(3,0,'Matériel');
+ if(!S.p.rules.some(r=>r.id=='circ'))S.p.rules.push(R('circ','Circulation / Autre','circulation',null,'rate',400,60,[1,'d']));
+ S.r.forEach(r=>{if(r.category=='classroom'&&r.tables==null)r.tables=10;if(r.category.startsWith('sanitary')&&r.cuvettes==null)r.cuvettes=5});
+}
+const uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=s=>document.querySelector(s);
+const ok=o=>o&&Array.isArray(o.b)&&Array.isArray(o.r)&&Array.isArray(o.s)&&o.p&&Array.isArray(o.p.rules)&&Array.isArray(o.tabs);
+let S;try{S=JSON.parse(localStorage.getItem(K));if(!ok(S))S=fresh()}catch(e){S=fresh()}
+norm();
+{const D=DEF().rules;S.p.rules.forEach(r=>{const d=D.find(x=>x.id==r.id);if(d)r.label=d.label})}
+let tab=S.tabs[0],day=0,fh=null,drag=null,edit=null,qLoc='',catLoc='',qSec='',collapsed=new Set();
+
+async function write(){if(!fh)return;try{const w=await fh.createWritable();await w.write(JSON.stringify(S,null,1));await w.close()}catch(e){fh=null;head()}}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}write()}
+function head(){$('#lk').textContent=fh?'Synchronisé avec : '+fh.name:'Gestion des surfaces, rotations et dotations';$('#blink').hidden=!window.showSaveFilePicker}
+
+// ── Moteur de calcul ──
+const roomById=id=>S.r.find(x=>x.id==id),secOf=id=>S.s.find(s=>s.it.some(a=>a.room==id));
+const match=(r,m)=>r.cat==m.category&&(!r.when||Object.entries(r.when).every(([k,v])=>m[k]==v));
+const ruleMin=(r,m)=>r.k=='rate'?m.area/r.a*r.b:(m.category=='bedroom'?m.beds:m.cells)*r.b;
+const dayF=(f,d)=>f[1]=='d'?f[0]:f[0]/d;
+const fm=m=>{m=Math.round(m);return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')};
+function sday(s,dy){
+ const p=S.p,L=[{l:'Prise de poste',m:p.setup,t:0}],W=[],cl=[];
+ for(const a of s.it){
+  const m=roomById(a.room);if(!m)continue;
+  if(m.category=='classroom'){cl.push(m);continue}
+  const c=p.rules.filter(r=>match(r,m)),use=c.length==1?c:c.filter(r=>a.rules.includes(r.id));
+  if(!use.length){W.push('Choisir une règle pour '+m.name);continue}
+  for(const r of use){const f=r.f[1]=='w'&&a.fw[r.id]>0?[a.fw[r.id],'w']:r.f;
+   L.push({l:m.name+' ('+r.label+')',m:ruleMin(r,m)*dayF(f,p.days),t:2})}}
+ const n=cl.length;
+ if(n){const rest=n-1,d=Math.min(rest,Math.max(2,Math.min(3,rest>>1))),sh=dy%n;
+  if(n<5||n>7)W.push('Lot de '+n+' classes : la règle prévoit 5 à 7 classes');
+  cl.forEach((_,i)=>{const m=cl[(i+sh)%n],t=i<1?'c':i<1+d?'d':'v';
+   L.push({l:m.name+' ('+{c:'complète',d:'dépoussiérage',v:'vérification'}[t]+')',m:p.cls[t],t:1})})}
+ return{L,W,tot:L.reduce((x,y)=>x+y.m,0)}}
+
+// ── Vues ──
+const icoSearch='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+const icoChev='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+
+function nav(){
+ const counts={'Locaux':S.r.length,'Secteurs':S.s.length,'Matériel':S.m.length};
+ $('#nav').innerHTML=S.tabs.map(t=>`<button draggable="true" data-tab="${t}" data-act="tab" class="${t==tab?'on':''}">${t}${counts[t]!=null?` <span class="cnt">${counts[t]}</span>`:''}</button>`).join('')
+}
+function render(){nav();$('#v').innerHTML=tab=='Dashboard'?vDash():tab=='Locaux'?vLoc():tab=='Secteurs'?vSec():tab=='Matériel'?vMat():vPar();head()}
+const sel=(n,o,v)=>`<select name="${n}">${o.map(([k,l])=>`<option value="${k}" ${k==v?'selected':''}>${l}</option>`).join('')}</select>`;
+const extra=(c,m)=>c=='office'?sel('traffic',[['high','Très fréquenté'],['low','Faiblement fréquenté']],m&&m.traffic):c=='canteen'?sel('floor',[['tile','Carrelage / sol souple'],['flotex','Flotex']],m&&m.floor):c=='bedroom'?`<input name="beds" type="number" min="1" step="1" value="${m&&m.beds||1}" aria-label="Nombre de lits"> <span class="mu">lit(s)</span>`:c=='showers'?`<input name="cells" type="number" min="1" step="1" value="${m&&m.cells||1}" aria-label="Cellules"> <span class="mu">cellule(s)</span>`:c=='classroom'?`<input name="tables" type="number" min="0" step="1" value="${m&&m.tables!=null?m.tables:10}" aria-label="Nombre de tables"> <span class="mu">table(s)</span>`:(c=='sanitary_ext'||c=='sanitary_int')?`<input name="cuvettes" type="number" min="0" step="1" value="${m&&m.cuvettes!=null?m.cuvettes:5}" aria-label="Nombre de cuvettes"> <span class="mu">cuvette(s)</span>`:'';
+const detail=m=>m.category=='office'?(m.traffic=='high'?'Très fréquenté':'Faiblement fréquenté'):m.category=='canteen'?(m.floor=='flotex'?'Flotex':'Carrelage / sol souple'):m.category=='bedroom'?m.beds+' lit(s)':m.category=='showers'?m.cells+' cellule(s)':m.category=='classroom'?(m.tables!=null?m.tables:10)+' tables':m.category.startsWith('sanitary')?(m.cuvettes!=null?m.cuvettes:5)+' cuvette(s)':'—';
+
+// ── Vue Dashboard ──
+function vDash(){
+ const totSurf=S.r.reduce((a,r)=>a+r.area,0);
+ const affIds=new Set(S.s.flatMap(s=>s.it.map(a=>a.room)));
+ const affRooms=S.r.filter(r=>affIds.has(r.id));
+ const affSurf=affRooms.reduce((a,r)=>a+r.area,0);
+ const pctRooms=S.r.length?Math.round(affRooms.length/S.r.length*100):0;
+ const pctSurf=totSurf?Math.round(affSurf/totSurf*100):0;
+
+ const secStats=S.s.map(s=>({s,d:sday(s,day)}));
+ const totMin=secStats.reduce((a,x)=>a+x.d.tot,0);
+ const totAvail=S.s.reduce((a,s)=>a+s.avail,0);
+ const avgOcc=totAvail?Math.round(totMin/totAvail*100):0;
+ const alerts=secStats.reduce((a,x)=>a+x.d.W.length+(x.d.tot>x.s.avail?1:0),0);
+
+ // Répartition par catégorie
+ const byCat=Object.entries(CATS).map(([k,lbl])=>{
+  const rs=S.r.filter(r=>r.category==k);
+  const surf=rs.reduce((a,r)=>a+r.area,0);
+  const aff=rs.filter(r=>affIds.has(r.id)).length;
+  return{k,lbl,count:rs.length,surf,aff};
+ }).filter(x=>x.count>0).sort((a,b)=>b.surf-a.surf);
+
+ // Matériel total
+ const matTotals=S.m.map(m=>({label:m.label,tot:S.s.reduce((a,s)=>a+qty(m,s),0)}));
+
+ if(!S.r.length&&!S.s.length){
+  return `<div class="card" style="text-align:center;padding:2.5rem 1.5rem">
+   <h2 style="justify-content:center;font-size:1.15rem">Bienvenue dans l'outil de sectorisation</h2>
+   <p class="mu" style="max-width:480px;margin:.4rem auto 1.2rem">Aucune donnée n'est encore enregistrée. Importe ton inventaire CSV des locaux, charge un jeu d'essai ou commence par créer un bâtiment.</p>
+   <div class="row" style="justify-content:center">
+    <button class="p" data-act="impcsv">Importer un fichier CSV…</button>
+    <button data-act="demo">Charger un exemple</button>
+    <button data-act="tab" data-tab="Locaux">Créer manuellement</button>
+   </div>
+  </div>`;
+ }
+
+ return `
+ <div class="toolbar" style="margin-top:0;margin-bottom:1.2rem">
+  <div class="row" style="margin:0"><strong style="font-size:.95rem">Synthèse d'exploitation</strong><span class="badge ac">${S.b.length} bâtiment(s)</span></div>
+  <div class="row" style="margin:0"><span class="mu">Jour observé :</span><select data-c="day">${Array.from({length:S.p.days},(_,i)=>`<option value="${i}" ${i==day?'selected':''}>Jour ${i+1}</option>`).join('')}</select></div>
+ </div>
+
+ <div class="kpi-grid">
+  <div class="kpi">
+   <div class="kpi-lbl">Surfaces affectées <span class="badge ac">${pctSurf}%</span></div>
+   <div class="kpi-val">${Math.round(affSurf).toLocaleString('fr-FR')} <span style="font-size:1rem;font-weight:500;color:var(--mu)">/ ${Math.round(totSurf).toLocaleString('fr-FR')} m²</span></div>
+   <div class="kpi-sub">${affRooms.length} sur ${S.r.length} pièce(s) affectée(s) (${pctRooms}%)</div>
+  </div>
+  <div class="kpi">
+   <div class="kpi-lbl">Secteurs actifs <span class="badge">${S.s.length}</span></div>
+   <div class="kpi-val">${fm(totMin)}</div>
+   <div class="kpi-sub">Charge cumulée sur ${fm(totAvail)} disponibles</div>
+  </div>
+  <div class="kpi">
+   <div class="kpi-lbl">Taux d'occupation moyen <span class="badge ${avgOcc>100?'er':avgOcc>=90?'wa':'ok'}">${avgOcc}%</span></div>
+   <div class="kpi-val">${S.s.length?fm(totMin/S.s.length):'0h00'}</div>
+   <div class="kpi-sub">Temps moyen par agent (Jour ${day+1})</div>
+  </div>
+  <div class="kpi">
+   <div class="kpi-lbl">Alertes & conformité <span class="badge ${alerts?'wa':'ok'}">${alerts?'À vérifier':'OK'}</span></div>
+   <div class="kpi-val ${alerts?'wa':'ok'}">${alerts}</div>
+   <div class="kpi-sub">${alerts?'Dépassement(s) ou règle(s) à ajuster':'Aucune anomalie détectée'}</div>
+  </div>
+ </div>
+
+ <div class="g2">
+  <section class="card">
+   <h2 style="justify-content:space-between">Charge des secteurs (Jour ${day+1}) <button class="ghost" data-act="tab" data-tab="Secteurs">Gérer →</button></h2>
+   ${secStats.length?`
+    <div class="leg" style="margin-bottom:.8rem"><span><i class="dot s0"></i>Prise de poste</span><span><i class="dot s1"></i>Classes</span><span><i class="dot s2"></i>Autres locaux</span></div>
+    ${secStats.map(({s,d})=>{
+     const pct=s.avail?Math.round(d.tot/s.avail*100):0;
+     const sc=Math.max(d.tot,s.avail,1);
+     const cls=d.tot>s.avail?'er':d.tot>=.9*s.avail?'wa':'ok';
+     return `<div class="dash-bar-row">
+      <div class="row" style="justify-content:space-between;margin-bottom:.25rem">
+       <span><strong>${esc(s.name)}</strong> <span class="mu">(${s.it.length} pièce(s))</span></span>
+       <span><strong class="${cls}">${fm(d.tot)}</strong> <span class="mu">/ ${fm(s.avail)}</span> <span class="badge ${cls}">${pct}%</span></span>
+      </div>
+      <div class="bar" style="margin:0">${d.L.map(l=>`<i class="s${l.t}" style="width:${l.m/sc*100}%"></i>`).join('')}</div>
+      ${d.W.map(w=>`<div class="mu wa" style="margin-top:.2rem">⚠ ${esc(w)}</div>`).join('')}
+     </div>`;
+    }).join('')}`:'<p class="mu">Aucun secteur créé pour le moment.</p>'}
+  </section>
+
+  <section class="card">
+   <h2 style="justify-content:space-between">Répartition des surfaces par catégorie <button class="ghost" data-act="tab" data-tab="Locaux">Locaux →</button></h2>
+   ${byCat.length?`<div class="tw"><table><thead><tr><th>Catégorie</th><th>Pièces</th><th>Affectées</th><th style="text-align:right">Surface</th></tr></thead><tbody>
+    ${byCat.map(c=>`<tr><td><strong>${esc(c.lbl)}</strong></td><td>${c.count}</td><td><span class="badge ${c.aff==c.count?'ok':''}">${c.aff}/${c.count}</span></td><td style="text-align:right">${Math.round(c.surf*10)/10} m²</td></tr>`).join('')}
+   </tbody></table></div>`:'<p class="mu">Aucune pièce enregistrée.</p>'}
+  </section>
+ </div>
+
+ <section class="card" style="margin-top:1.15rem">
+  <h2 style="justify-content:space-between">Dotation globale en matériel <button class="ghost" data-act="tab" data-tab="Matériel">Détail par secteur →</button></h2>
+  ${S.s.length?`<div class="row" style="gap:.75rem">${matTotals.map(m=>`<div class="badge" style="padding:.45rem .8rem;font-size:.85rem;background:var(--sf2)"><span>${esc(m.label)}</span> <strong style="color:var(--ac);font-size:.95rem;margin-left:.3rem">${m.tot}</strong></div>`).join('')}</div>`:'<p class="mu">Affecte des pièces aux secteurs pour calculer le matériel global.</p>'}
+ </section>`;
+}
+
+// ── Vue Locaux ──
+function vLoc(){
+ const eb=edit&&edit.t=='b'?S.b.find(x=>x.id==edit.id):null,ro=edit&&edit.t=='r'?roomById(edit.id):null;
+ const bo=S.b.map(b=>`<option value="${b.id}" ${ro&&ro.bid==b.id?'selected':''}>${esc(b.name)}</option>`).join('');
+ const totSurf=Math.round(S.r.reduce((a,b)=>a+b.area,0)*10)/10;
+ return `<div class="g2">
+  <section class="card"><h2>${eb?'Modifier le bâtiment':'Nouveau bâtiment'}</h2>
+   <form data-f="b"><div class="row"><input name="name" placeholder="Nom du bâtiment (ex. Bâtiment A)" style="flex:1" value="${eb?esc(eb.name):''}" required><input name="code" placeholder="0123456A" maxlength="8" style="width:7.5rem" value="${eb?esc(eb.code):''}" required></div>
+   <div class="row"><button class="p">${eb?'Enregistrer':'Ajouter le bâtiment'}</button>${eb?'<button type="button" data-act="cancel">Annuler</button>':''}<span id="eb" class="er"></span></div>
+   <span class="mu">Code UAI établissement : 7 chiffres et 1 lettre.</span></form></section>
+  <section class="card"><h2>${ro?'Modifier la pièce':'Nouvelle pièce'}</h2>${S.b.length?`<form data-f="r"><div class="row"><select name="bid">${bo}</select><input name="name" placeholder="Nom ou numéro" style="flex:1" value="${ro?esc(ro.name):''}" required><input name="area" type="number" min="0.1" step="0.1" placeholder="m²" value="${ro?ro.area:''}" required></div>
+   <div class="row"><select name="category">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${ro&&ro.category==k?'selected':''}>${v}</option>`).join('')}</select><span id="ex" class="row" style="margin:0">${extra(ro?ro.category:'classroom',ro)}</span></div>
+   <div class="row"><button class="p">${ro?'Enregistrer':'Ajouter la pièce'}</button>${ro?'<button type="button" data-act="cancel">Annuler</button>':''}<span id="er" class="er"></span></div></form>`:'<p class="mu">Ajoute d’abord un bâtiment pour y créer des pièces.</p>'}</section>
+ </div>
+ <div class="toolbar">
+  <div class="row" style="margin:0">
+   <button data-act="impcsv">Importer un CSV…</button>
+   <button data-act="tplcsv">Modèle CSV</button>
+   ${S.b.length?'':'<button data-act="demo">Charger un exemple</button>'}
+   ${S.r.length?`<span class="badge ac">${S.b.length} bâtiment(s) · ${S.r.length} pièce(s) · ${totSurf} m²</span>`:''}
+  </div>
+  ${S.r.length?`<div class="row" style="margin:0">
+   <div class="search-box">${icoSearch}<input id="qloc" placeholder="Rechercher une pièce…" value="${esc(qLoc)}"></div>
+   <select id="catloc"><option value="">Toutes catégories</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${catLoc==k?'selected':''}>${v}</option>`).join('')}</select>
+  </div>`:''}
+ </div>
+ ${S.b.map(b=>{
+  const allRs=S.r.filter(r=>r.bid==b.id);
+  const rs=allRs.filter(r=>(!qLoc||r.name.toLowerCase().includes(qLoc.toLowerCase()))&&(!catLoc||r.category==catLoc));
+  const bSurf=Math.round(allRs.reduce((x,y)=>x+y.area,0)*10)/10;
+  return `<section class="card" style="margin-top:1rem">
+   <div class="row" style="justify-content:space-between">
+    <div class="row" style="margin:0"><h2 style="margin:0">${esc(b.name)}</h2><span class="badge">${esc(b.code)}</span><span class="badge ac">${allRs.length} pièce(s) · ${bSurf} m²</span></div>
+    <div><button class="ghost" data-act="edb" data-id="${b.id}">Modifier</button><button class="ghost danger" data-act="delb" data-id="${b.id}">Supprimer</button></div>
+   </div>
+   ${rs.length?`<div class="tw" style="margin-top:.75rem"><table><thead><tr><th>Pièce</th><th>Catégorie</th><th>Surface</th><th>Détail</th><th style="text-align:right">Actions</th></tr></thead><tbody>${rs.map(r=>`<tr><td><strong>${esc(r.name)}</strong></td><td><span class="badge">${CATS[r.category]||r.category}</span></td><td>${r.area} m²</td><td class="mu">${detail(r)}</td><td style="text-align:right;white-space:nowrap"><button class="ghost" data-act="edr" data-id="${r.id}">Modifier</button><button class="ghost danger" data-act="delr" data-id="${r.id}" aria-label="Supprimer ${esc(r.name)}">×</button></td></tr>`).join('')}</tbody></table></div>`:`<p class="mu" style="margin:.6rem 0 0">${allRs.length?'Aucune pièce ne correspond au filtre.':'Aucune pièce enregistrée dans ce bâtiment.'}</p>`}
+  </section>`}).join('')}`
+}
+
+// ── Vue Secteurs (cartes dépliables / repliables) ──
+function card(s){
+ const isCol=collapsed.has(s.id);
+ const d=sday(s,day),over=d.tot>s.avail,warn=!over&&d.tot>=.9*s.avail,sc=Math.max(d.tot,s.avail);
+ const cls=over?'er':warn?'wa':'ok';
+ const stBadge=over?`<span class="badge er">+${Math.round(d.tot-s.avail)} min</span>`:warn?`<span class="badge wa">Reste ${Math.round(s.avail-d.tot)} min</span>`:`<span class="badge ok">Reste ${Math.round(s.avail-d.tot)} min</span>`;
+ const items=s.it.map(a=>{const m=roomById(a.room);if(!m)return '';const c=S.p.rules.filter(r=>match(r,m));
+  const ch=c.length>1?c.map(r=>`<label class="mu" style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.25rem"><input type="checkbox" data-c="rchk" data-s="${s.id}" data-r="${m.id}" data-x="${r.id}" ${a.rules.includes(r.id)?'checked':''}> ${r.label.replace(/^(Self|Gymnase), /,'')}</label>${r.f[1]=='w'&&a.rules.includes(r.id)?` <input type="number" step="0.5" min="0.5" data-c="rfw" data-s="${s.id}" data-r="${m.id}" data-x="${r.id}" value="${a.fw[r.id]||r.f[0]}" style="width:4.2rem;padding:.2rem .4rem"> <span class="mu">×/sem</span>`:''}`).join('<br>'):'';
+  return `<div class="it" draggable="true" data-drag="${m.id}"><div><strong>${esc(m.name)}</strong> <span class="mu">· ${CATS[m.category]||m.category} (${m.area} m²)</span></div><button class="ghost danger" data-act="rm" data-id="${m.id}" aria-label="Retirer ${esc(m.name)}">×</button>${ch?`<div style="width:100%">${ch}</div>`:''}</div>`}).join('');
+
+ return `<section class="card sec-card ${isCol?'collapsed':''}" data-zone="${s.id}">
+  <div class="row" style="margin-bottom:${isCol?'0':'.5rem'}">
+   <button class="ghost chev" data-act="toggle" data-id="${s.id}" aria-expanded="${!isCol}" title="${isCol?'Déplier le secteur':'Replier le secteur'}">${icoChev}</button>
+   <input data-c="sname" data-s="${s.id}" value="${esc(s.name)}" aria-label="Nom du secteur" style="font-weight:650;flex:1;background:transparent;border-color:transparent;padding-left:.2rem">
+   <span class="badge">${s.it.length} pièce(s)</span>
+   <button class="ghost danger" data-act="dels" data-id="${s.id}" title="Supprimer le secteur">×</button>
+  </div>
+
+  ${isCol?`
+   <div class="sec-compact">
+    <span class="${cls}" style="font-weight:700;font-size:.95rem">${fm(d.tot)} <span class="mu" style="font-weight:400">/ ${fm(s.avail)}</span></span>
+    <div class="bar sm">${d.L.map(l=>`<i class="s${l.t}" style="width:${l.m/sc*100}%"></i>`).join('')}</div>
+    ${stBadge}
+    ${d.W.length?`<span class="badge wa" title="${esc(d.W.join(' | '))}">⚠ ${d.W.length}</span>`:''}
+   </div>
+  `:`
+   <div class="row" style="justify-content:space-between;margin-top:.2rem">
+    <div style="display:flex;align-items:baseline;gap:.45rem"><span class="big ${cls}">${fm(d.tot)}</span><span class="mu">/ <input type="number" min="1" step="5" data-c="savail" data-s="${s.id}" value="${s.avail}" style="width:4.6rem;padding:.25rem .45rem"> min</span></div>
+    ${stBadge}
+   </div>
+   <div class="bar">${d.L.map(l=>`<i class="s${l.t}" style="width:${l.m/sc*100}%"></i>`).join('')}</div>
+   <div class="leg"><span><i class="dot s0"></i>Poste</span><span><i class="dot s1"></i>Classes</span><span><i class="dot s2"></i>Autres locaux</span></div>
+   ${d.W.map(w=>`<div class="alert-wa">⚠ ${esc(w)}</div>`).join('')}
+   <div class="zone ${items?'':'empty'}" data-zone="${s.id}" style="margin-top:.65rem">${items||'<span class="mu">Glisse des pièces depuis la colonne de gauche</span>'}</div>
+   <details><summary>Détail des temps (Jour ${day+1})</summary><div class="tw" style="margin-top:.5rem"><table><tbody>${d.L.map(l=>`<tr><td>${esc(l.l)}</td><td style="text-align:right;font-weight:600">${Math.round(l.m*10)/10} min</td></tr>`).join('')}</tbody></table></div></details>
+   <details><summary>Dotation matériel du secteur</summary><div class="tw" style="margin-top:.5rem"><table><tbody>${S.m.map(m=>`<tr><td>${esc(m.label)}</td><td style="text-align:right"><span class="badge ac">${qty(m,s)}</span></td></tr>`).join('')}</tbody></table></div></details>
+  `}
+ </section>`
+}
+
+function vSec(){
+ const unAll=S.r.filter(r=>!secOf(r.id));
+ const un=unAll.filter(r=>!qSec||r.name.toLowerCase().includes(qSec.toLowerCase())||(CATS[r.category]||'').toLowerCase().includes(qSec.toLowerCase()));
+ const allCol=S.s.length>0&&S.s.every(s=>collapsed.has(s.id));
+ return `<div class="toolbar" style="margin-top:0;margin-bottom:1.15rem">
+  <div class="row" style="margin:0">
+   <button class="p" data-act="nsec">+ Nouveau secteur</button>
+   ${S.s.length?`<button data-act="${allCol?'expall':'colall'}">${allCol?'Tout déplier':'Tout replier'}</button>`:''}
+  </div>
+  <div class="row" style="margin:0"><span class="mu">Jour de rotation :</span><select data-c="day">${Array.from({length:S.p.days},(_,i)=>`<option value="${i}" ${i==day?'selected':''}>Jour ${i+1}</option>`).join('')}</select></div>
+ </div>
+ <div class="lay">
+  <section class="card sticky-col">
+   <h2 style="justify-content:space-between">Non affectées <span class="badge ac">${unAll.length}</span></h2>
+   ${unAll.length?`<div class="search-box" style="width:100%;margin-bottom:.4rem">${icoSearch}<input id="qsec" placeholder="Filtrer les pièces…" style="width:100%" value="${esc(qSec)}"></div>`:''}
+   <div class="zone scroll-zone ${un.length?'':'empty'}" data-zone="">${un.map(m=>`<div class="chip" draggable="true" data-drag="${m.id}"><div><strong>${esc(m.name)}</strong><div class="mu">${CATS[m.category]||m.category}</div></div><span class="badge">${m.area} m²</span></div>`).join('')||`<span class="mu">${unAll.length?'Aucun résultat.':'Toutes les pièces sont affectées.'}</span>`}</div>
+  </section>
+  <div class="secs">${S.s.map(card).join('')||'<div class="card"><p class="mu" style="margin:0">Clique sur <strong>+ Nouveau secteur</strong> pour créer une tournée d’agent, puis glisse-y des pièces.</p></div>'}</div>
+ </div>`
+}
+
+// ── Vue Paramètres ──
+function vPar(){
+ const p=S.p,N=(v,a)=>`<input type="number" step="any" min="0" value="${v}" ${a}>`;
+ return `<section class="card"><h2>Paramètres généraux</h2>
+  <div class="row" style="gap:1.2rem"><label>Prise de poste ${N(p.setup,'data-c="pset"')} <span class="mu">min</span></label><label>Jours ouvrés / sem ${N(p.days,'data-c="pdays"')}</label></div>
+  <div class="row" style="gap:1.2rem;margin-top:.4rem"><label>Classe complète ${N(p.cls.c,'data-c="pcls" data-x="c"')} <span class="mu">min</span></label><label>Dépoussiérage ${N(p.cls.d,'data-c="pcls" data-x="d"')} <span class="mu">min</span></label><label>Vérification ${N(p.cls.v,'data-c="pcls" data-x="v"')} <span class="mu">min</span></label></div>
+  <h2 style="margin-top:1.4rem">Cadences par type de local</h2>
+  <div class="tw"><table><thead><tr><th>Règle</th><th>Cadence de calcul</th><th>Fréquence</th></tr></thead><tbody>${p.rules.map((r,i)=>`<tr><td><strong>${r.label}</strong></td><td>${r.k=='rate'?N(r.a,`data-c="pr" data-i="${i}" data-x="a"`)+' <span class="mu">m² en</span> '+N(r.b,`data-c="pr" data-i="${i}" data-x="b"`)+' <span class="mu">min</span>':N(r.b,`data-c="pr" data-i="${i}" data-x="b"`)+' <span class="mu">min par '+(r.cat=='bedroom'?'lit':'cellule')+'</span>'}</td><td>${N(r.f[0],`data-c="pf" data-i="${i}"`)} <select data-c="pfu" data-i="${i}"><option value="d" ${r.f[1]=='d'?'selected':''}>par jour</option><option value="w" ${r.f[1]=='w'?'selected':''}>par semaine</option></select></td></tr>`).join('')}</tbody></table></div>
+  <div class="row" style="justify-content:space-between;margin-top:1rem"><span class="mu">Une fréquence hebdomadaire est ramenée au quotidien (÷ jours ouvrés).</span><button class="danger" data-act="reset">Rétablir les paramètres par défaut</button></div>
+ </section>`
+}
+
+// ── Matériel ──
+const UN={tables:'tables',cuvettes:'cuvettes',beds:'lits',cells:'cellules de douche'};
+const CC={'*':'toutes les pièces','~':'toutes sauf classes et sanitaires',san:'sanitaires et toilettes',...CATS};
+const inC=(r,c)=>c=='*'||(c=='~'?!['classroom','sanitary_ext','sanitary_int'].includes(r.category):c=='san'?r.category.startsWith('sanitary'):r.category==c);
+function qty(m,s){const rs=s.it.map(a=>roomById(a.room)).filter(Boolean);
+ return m.rules.reduce((t,u)=>{const f=rs.filter(r=>inC(r,u.c||'*'));
+  return t+(u.k=='sector'?u.n:u.k=='room'?f.length*u.n:Math.ceil(f.reduce((x,r)=>x+(u.k=='area'?r.area:r[u.u]||0),0)/u.n))},0)}
+function ruleRow(i,j,u){
+ const at=x=>`data-c="mn" data-mi="${i}" data-ri="${j}" data-x="${x}"`,
+ N=`<input type="number" step="any" min="0" value="${u.n}" ${at('n')} aria-label="Quantité">`,
+ SE=(x,o,v)=>`<select ${at(x)}>${o.map(([k,l])=>`<option value="${k}" ${k==v?'selected':''}>${l}</option>`).join('')}</select>`,
+ cat=' <span class="mu">de</span> '+SE('c',Object.entries(CC),u.c||'*');
+ return `<div class="row">${SE('k',[['sector','Par secteur'],['room','Par pièce'],['area','Par surface'],['unit','Par unité']],u.k)} `+
+  (u.k=='sector'?N+' <span class="mu">par secteur</span>':u.k=='room'?N+' <span class="mu">par pièce</span>'+cat:u.k=='area'?'<span class="mu">1 pour</span> '+N+' <span class="mu">m²</span>'+cat:'<span class="mu">1 pour</span> '+N+' '+SE('u',Object.entries(UN),u.u||'tables')+cat)+
+  `<button class="ghost danger" data-act="mruledel" data-mi="${i}" data-ri="${j}" aria-label="Supprimer la règle">×</button></div>`}
+function vMat(){
+ const q=S.m.map(m=>S.s.map(s=>qty(m,s)));
+ return `<section class="card"><h2>Besoins en matériel par secteur</h2>${S.s.length?`<div class="tw"><table><thead><tr><th>Matériel</th>${S.s.map(s=>`<th>${esc(s.name)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${S.m.map((m,i)=>`<tr><td><strong>${esc(m.label)}</strong></td>${q[i].map(v=>`<td>${v}</td>`).join('')}<td><span class="badge ac">${q[i].reduce((a,b)=>a+b,0)}</span></td></tr>`).join('')}</tbody></table></div><p class="mu" style="margin:.6rem 0 0">Quantités arrondies à l’unité supérieure pour chaque secteur.</p>`:'<p class="mu" style="margin:0">Crée des secteurs et affecte-leur des pièces pour calculer les dotations en matériel.</p>'}</section>
+ <section class="card" style="margin-top:1.15rem"><h2>Règles de calcul du matériel</h2>${S.m.map((m,i)=>`<div class="rule-box"><div class="row"><input data-c="mlab" data-mi="${i}" value="${esc(m.label)}" aria-label="Nom du matériel" style="font-weight:650;flex:1"><button class="ghost danger" data-act="mdel" data-mi="${i}">Supprimer</button></div>${m.rules.map((u,j)=>ruleRow(i,j,u)).join('')}<button data-act="mrule" data-mi="${i}" style="margin-top:.3rem">+ Ajouter une règle</button></div>`).join('')}
+ <form data-f="m" class="row" style="margin-top:.9rem"><input name="label" placeholder="Nom du nouveau matériel" style="flex:1;max-width:320px" required><button class="p">+ Ajouter un matériel</button></form>
+ <div class="row" style="justify-content:space-between;margin-top:1rem"><span class="mu">Les règles d’un même matériel s’additionnent automatiquement.</span><button class="danger" data-act="mreset">Rétablir le matériel par défaut</button></div></section>`
+}
+
+// ── Import CSV ──
+function parseCSV(txt){
+ txt=txt.replace(/^\uFEFF/,'');
+ const first=(txt.split(/\r?\n/)[0]||'');
+ const sep=(first.match(/;/g)||[]).length>=(first.match(/,/g)||[]).length?';':',';
+ const rows=[];let row=[],cur='',q=false;
+ for(let i=0;i<txt.length;i++){
+  const c=txt[i];
+  if(q){if(c=='"'&&txt[i+1]=='"'){cur+='"';i++}else if(c=='"')q=false;else cur+=c}
+  else{if(c=='"')q=true;else if(c==sep){row.push(cur);cur=''}else if(c=='\r'&&txt[i+1]=='\n'){row.push(cur);rows.push(row);row=[];cur='';i++}else if(c=='\n'||c=='\r'){row.push(cur);rows.push(row);row=[];cur=''}else cur+=c}}
+ if(cur||row.length){row.push(cur);rows.push(row)}
+ return rows.filter(r=>r.some(x=>x.trim()!=''))}
+
+const cleanH=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+function mapCat(raw){
+ const s=cleanH(raw||'');
+ if(!s||s.includes('circul')||s.includes('infirm')||s.includes('autre'))return 'circulation';
+ if(s.includes('classe'))return 'classroom';
+ if(s.includes('bureau'))return 'office';
+ if(s.includes('sanitaire')){return s.includes('int')?'sanitary_int':'sanitary_ext'}
+ if(s.includes('chambre'))return 'bedroom';
+ if(s.includes('douche'))return 'showers';
+ if(s.includes('self')||s.includes('cantine'))return 'canteen';
+ if(s.includes('cdi')||s.includes('biblio'))return 'library';
+ if(s.includes('gym'))return 'gym';
+ if(s.includes('escalier'))return 'stairs';
+ return 'circulation'}
+
+function importCSVText(txt){
+ const rows=parseCSV(txt);
+ if(rows.length<2){alert('Le fichier CSV semble vide ou ne contient que des en-têtes.');return}
+ const hdr=rows[0].map(cleanH);
+ const col=(...keys)=>hdr.findIndex(h=>keys.some(k=>h.startsWith(k)||h.includes(k)));
+ const iBat=col('batiment'),iCode=col('code'),iPiece=col('piece','local','nom'),iSurf=col('surface','m2'),iCat=col('categorie'),iFreq=col('frequentation'),iSol=col('sol'),iLits=col('lit'),iCell=col('cellule'),iTab=col('table'),iCuv=col('cuvette');
+ if(iBat<0||iPiece<0||iSurf<0){alert('Colonnes obligatoires introuvables (Bâtiment, Pièce, Surface).');return}
+
+ const replace=S.b.length||S.r.length?confirm('OK = Remplacer tous les bâtiments et pièces actuels par ce CSV.\nAnnuler = Ajouter/fusionner avec les données existantes.'):true;
+ const newB=replace?[]:[...S.b],newR=replace?[]:[...S.r];
+ let addedB=0,addedR=0,updatedR=0,skipped=0;
+
+ for(let i=1;i<rows.length;i++){
+  const r=rows[i];
+  const bName=(r[iBat]||'').trim(),rName=(r[iPiece]||'').trim();
+  const area=parseFloat(String(r[iSurf]||'').replace(/\s/g,'').replace(',','.'));
+  if(!bName||!rName||!(area>0)){skipped++;continue}
+  let code=iCode>=0?(r[iCode]||'').trim().toUpperCase():'';
+  if(!/^\d{7}[A-Z]$/.test(code))code='0000000A';
+
+  let bat=newB.find(b=>b.name.toLowerCase()==bName.toLowerCase());
+  if(!bat){bat={id:uid(),name:bName,code};newB.push(bat);addedB++}
+
+  const cat=mapCat(iCat>=0?r[iCat]:'');
+  const room={id:uid(),bid:bat.id,name:rName,area,category:cat};
+  if(cat=='office'){const f=cleanH(iFreq>=0?r[iFreq]:'');room.traffic=f.includes('faible')?'low':'high'}
+  if(cat=='canteen'){const fl=cleanH(iSol>=0?r[iSol]:'');room.floor=fl.includes('flotex')?'flotex':'tile'}
+  if(cat=='bedroom'){const v=parseInt(iLits>=0?r[iLits]:'',10);room.beds=v>0?v:1}
+  if(cat=='showers'){const v=parseInt(iCell>=0?r[iCell]:'',10);room.cells=v>0?v:1}
+  if(cat=='classroom'){const v=parseInt(iTab>=0?r[iTab]:'',10);room.tables=!isNaN(v)&&v>=0?v:10}
+  if(cat.startsWith('sanitary')){const v=parseInt(iCuv>=0?r[iCuv]:'',10);room.cuvettes=!isNaN(v)&&v>=0?v:5}
+
+  const ex=newR.find(x=>x.bid==bat.id&&x.name.toLowerCase()==rName.toLowerCase());
+  if(ex){room.id=ex.id;newR[newR.indexOf(ex)]=room;updatedR++}
+  else{newR.push(room);addedR++}
+ }
+ if(!addedR&&!updatedR){alert('Aucune pièce valide trouvée dans le fichier CSV.');return}
+ S.b=newB;S.r=newR;
+ const validIds=new Set(S.r.map(x=>x.id));
+ S.s.forEach(s=>s.it=s.it.filter(a=>validIds.has(a.room)));
+ edit=null;tab='Locaux';save();render();
+ alert(`Import CSV terminé :\n• ${addedB} bâtiment(s) créé(s)\n• ${addedR} pièce(s) ajoutée(s)`+(updatedR?`\n• ${updatedR} pièce(s) mise(s) à jour`:'')+(skipped?`\n• ${skipped} ligne(s) ignorée(s)`:''));
+}
+
+// ── Actions & Événements ──
+const acts={
+ tab:d=>{tab=d.tab;edit=null;render()},
+ toggle:d=>{if(collapsed.has(d.id))collapsed.delete(d.id);else collapsed.add(d.id);render()},
+ colall:()=>{S.s.forEach(s=>collapsed.add(s.id));render()},
+ expall:()=>{collapsed.clear();render()},
+ edb:d=>{edit={t:'b',id:d.id};render();scrollTo({top:0,behavior:'smooth'})},
+ edr:d=>{edit={t:'r',id:d.id};render();scrollTo({top:0,behavior:'smooth'})},
+ cancel:()=>{edit=null;render()},
+ mdel:d=>{const m=S.m[d.mi];if(!confirm('Supprimer le matériel « '+m.label+' » ?'))return;S.m.splice(d.mi,1);save();render()},
+ mrule:d=>{S.m[d.mi].rules.push({k:'sector',n:1});save();render()},
+ mruledel:d=>{S.m[d.mi].rules.splice(d.ri,1);save();render()},
+ mreset:()=>{if(confirm('Rétablir le matériel et ses règles par défaut ? Les matériels ajoutés seront supprimés.')){S.m=DEFM();save();render()}},
+ delb:d=>{const b=S.b.find(x=>x.id==d.id);if(!confirm('Supprimer le bâtiment « '+b.name+' » et ses pièces ?'))return;const ids=S.r.filter(r=>r.bid==b.id).map(r=>r.id);S.s.forEach(s=>s.it=s.it.filter(a=>!ids.includes(a.room)));S.r=S.r.filter(r=>r.bid!=b.id);S.b=S.b.filter(x=>x!=b);edit=null;save();render()},
+ delr:d=>{const m=roomById(d.id);if(!confirm('Supprimer la pièce « '+m.name+' » ?'))return;S.s.forEach(s=>s.it=s.it.filter(a=>a.room!=m.id));S.r=S.r.filter(x=>x!=m);edit=null;save();render()},
+ nsec:()=>{S.s.push({id:uid(),name:'Secteur '+(S.s.length+1),avail:495,it:[]});save();render()},
+ dels:d=>{const s=S.s.find(x=>x.id==d.id);if(!confirm('Supprimer le secteur « '+s.name+' » ? Ses pièces redeviennent non affectées.'))return;collapsed.delete(d.id);S.s=S.s.filter(x=>x!=s);save();render()},
+ rm:d=>move(d.id,''),
+ reset:()=>{if(confirm('Rétablir toutes les valeurs par défaut ?')){S.p=DEF();save();render()}},
+ exp:()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='secteurs.json';a.click()},
+ imp:()=>$('#file').click(),
+ impcsv:()=>$('#csvfile').click(),
+ tplcsv:()=>{const bom='\uFEFF',csv='Bâtiment;Code établissement;Pièce;Surface (m²);Catégorie;Fréquentation;Sol;Lits;Cellules;Tables;Cuvettes\n"A1, INTER, EX";0290341N;Salle 101;45,89;Salle de classe;;;;;22;\n"A1, INTER, EX";0290341N;Sanitaires Garçons;20;Sanitaire externat;;;;;;4\n"A1, INTER, EX";0290341N;Bureau infos;14,19;Bureau;Très fréquenté;;;;;\n';
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bom+csv],{type:'text/csv;charset=utf-8'}));a.download='modele_locaux.csv';a.click()},
+ link:async()=>{try{fh=await showSaveFilePicker({suggestedName:'secteurs.json',types:[{accept:{'application/json':['.json']}}]});await write();head()}catch(e){}},
+ demo:()=>{const b=uid();S.b.push({id:b,name:'Bâtiment A',code:'0123456A'});
+  const add=(name,area,category,x)=>S.r.push({id:uid(),bid:b,name,area,category,...x});
+  for(let i=1;i<=7;i++)add('Classe A'+i,50,'classroom',{tables:10});
+  add('WC garçons',20,'sanitary_ext',{cuvettes:5});add('WC filles',15,'sanitary_ext',{cuvettes:5});add('Secrétariat',24,'office',{traffic:'high'});add('Chambre 101',12,'bedroom',{beds:3});add('Self',400,'canteen',{floor:'tile'});add('Gymnase',4600,'gym');
+  S.s.push({id:uid(),name:'Matin 1',avail:495,it:[]});save();render()}};
+
+document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(t)acts[t.dataset.act](t.dataset)});
+document.addEventListener('input',e=>{
+ const id=e.target.id;
+ if(id=='qloc'){qLoc=e.target.value;const pos=e.target.selectionStart;render();const el=$('#qloc');if(el){el.focus();el.setSelectionRange(pos,pos)}}
+ else if(id=='qsec'){qSec=e.target.value;const pos=e.target.selectionStart;render();const el=$('#qsec');if(el){el.focus();el.setSelectionRange(pos,pos)}}
+});
+
+function move(rid,sid){
+ const m=roomById(rid),from=secOf(rid),to=S.s.find(s=>s.id==sid);if(from==to)return;
+ const q=!to?'Retirer « '+m.name+' » du secteur « '+from.name+' » ?':from?'Déplacer « '+m.name+' » de « '+from.name+' » vers « '+to.name+' » ?':'Ajouter « '+m.name+' » au secteur « '+to.name+' » ?';
+ if(!confirm(q))return;if(from)from.it=from.it.filter(a=>a.room!=rid);
+ if(to)to.it.push({room:rid,rules:[],fw:{}});save();render()}
+
+document.addEventListener('dragstart',e=>{const t=e.target.closest('[data-drag],[data-tab]');if(!t)return;drag=t.dataset.drag?{room:t.dataset.drag}:{tab:t.dataset.tab};e.dataTransfer.setData('text/plain','x')});
+document.addEventListener('dragover',e=>{if(e.target.closest('[data-zone]')||(drag&&drag.tab&&e.target.closest('[data-tab]')))e.preventDefault();document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'));const z=drag&&drag.room&&e.target.closest('[data-zone]');if(z)z.classList.add('over')});
+document.addEventListener('drop',e=>{if(!drag)return;e.preventDefault();document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'));
+ if(drag.tab){const t=e.target.closest('[data-tab]');if(t&&t.dataset.tab!=drag.tab){const a=S.tabs,i=a.indexOf(drag.tab);a.splice(i,1);a.splice(a.indexOf(t.dataset.tab),0,drag.tab);save();render()}}
+ else{const z=e.target.closest('[data-zone]');if(z)move(drag.room,z.dataset.zone)}drag=null});
+document.addEventListener('dragend',()=>{drag=null;document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'))});
+
+document.addEventListener('change',e=>{
+ const t=e.target,c=t.dataset.c;
+ if(t.id=='catloc'){catLoc=t.value;render();return}
+ if(t.name=='category'&&t.closest('form')){$('#ex').innerHTML=extra(t.value,edit&&edit.t=='r'?roomById(edit.id):null);return}
+ if(!c)return;const sec=S.s.find(s=>s.id==t.dataset.s),it=sec&&sec.it.find(a=>a.room==t.dataset.r),n=+t.value,p=S.p;
+ if(c=='day'){day=n;render();return}
+ if(c=='sname'){sec.name=t.value.trim()||sec.name}
+ else if(c=='savail'){if(n>0)sec.avail=n}
+ else if(c=='rchk'){const x=t.dataset.x;it.rules=t.checked?[...it.rules,x]:it.rules.filter(r=>r!=x)}
+ else if(c=='rfw'){if(n>0)it.fw[t.dataset.x]=n}
+ else if(c=='pset'){if(n>=0)p.setup=n}
+ else if(c=='pdays'){if(n>=1&&n<=7)p.days=Math.round(n)}
+ else if(c=='pcls'){if(n>=0)p.cls[t.dataset.x]=n}
+ else if(c=='pr'){if(n>0)p.rules[t.dataset.i][t.dataset.x]=n}
+ else if(c=='pf'){if(n>0)p.rules[t.dataset.i].f[0]=n}
+ else if(c=='pfu'){p.rules[t.dataset.i].f[1]=t.value}
+ else if(c=='mlab'){const m=S.m[t.dataset.mi];m.label=t.value.trim()||m.label}
+ else if(c=='mn'){const u=S.m[t.dataset.mi].rules[t.dataset.ri],x=t.dataset.x;
+  if(x=='n'){if(n>=0&&(u.k=='sector'||u.k=='room'||n>0))u.n=n}
+  else{u[x]=t.value;if(x=='k'){if(u.k!='sector'&&!u.c)u.c='*';if(u.k=='unit'&&!u.u)u.u='tables';if((u.k=='area'||u.k=='unit')&&!(u.n>0))u.n=1}}}
+ save();render()});
+
+document.addEventListener('submit',e=>{
+ const f=e.target.dataset.f;if(!f)return;e.preventDefault();const d=Object.fromEntries(new FormData(e.target));
+ if(f=='m'){S.m.push({id:uid(),label:d.label.trim(),rules:[{k:'sector',n:1}]});save();render();return}
+ if(f=='b'){const code=d.code.trim().toUpperCase();
+  if(!/^\d{7}[A-Z]$/.test(code)){$('#eb').textContent='Code attendu : 7 chiffres et 1 lettre (ex. 0123456A).';return}
+  const o=edit&&edit.t=='b'?S.b.find(x=>x.id==edit.id):null;
+  if(o){o.name=d.name.trim();o.code=code}else S.b.push({id:uid(),name:d.name.trim(),code})}
+ else{const name=d.name.trim(),area=+d.area;
+  if(!(area>0)){$('#er').textContent='La surface doit être supérieure à 0.';return}
+  const o=edit&&edit.t=='r'?roomById(edit.id):null;
+  if(S.r.some(r=>r!==o&&r.bid==d.bid&&r.name.toLowerCase()==name.toLowerCase())){$('#er').textContent='Ce nom existe déjà dans ce bâtiment.';return}
+  const m={id:o?o.id:uid(),bid:d.bid,name,area,category:d.category};
+  if(d.traffic)m.traffic=d.traffic;if(d.floor)m.floor=d.floor;if(d.beds)m.beds=Math.max(1,Math.round(+d.beds));if(d.cells)m.cells=Math.max(1,Math.round(+d.cells));if(d.tables!=null&&d.tables!=='')m.tables=Math.max(0,Math.round(+d.tables));if(d.cuvettes!=null&&d.cuvettes!=='')m.cuvettes=Math.max(0,Math.round(+d.cuvettes));
+  if(o){if(o.category!=m.category||o.floor!=m.floor||o.traffic!=m.traffic)S.s.forEach(s=>s.it.forEach(a=>{if(a.room==o.id){a.rules=[];a.fw={}}}));S.r[S.r.indexOf(o)]=m}else S.r.push(m)}
+ edit=null;save();render()});
+
+$('#file').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+ rd.onload=()=>{try{const o=JSON.parse(rd.result);if(!ok(o))throw 0;if(!confirm('Remplacer les données actuelles par ce fichier ?'))return;S=o;norm();tab=S.tabs[0];save();render()}catch(x){alert('Fichier non reconnu : choisis un fichier exporté par cet outil.')}};
+ rd.readAsText(f);e.target.value=''});
+$('#csvfile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+ rd.onload=()=>importCSVText(rd.result);
+ rd.readAsText(f,'UTF-8');e.target.value=''});
+
+render();
+</script>
+</body>
+</html>
