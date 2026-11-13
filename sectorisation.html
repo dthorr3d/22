@@ -131,6 +131,22 @@ summary:hover{color:var(--tx)}
 .search-box input{padding-left:2rem}
 .search-box svg{position:absolute;left:.65rem;color:var(--mu);pointer-events:none}
 .rule-box{background:var(--sf2);border:1px solid var(--bd);border-radius:var(--rs);padding:.85rem;margin-bottom:.75rem}
+button:disabled{opacity:.45;cursor:not-allowed}
+
+/* Import CSV : aperçu modale */
+.ovl{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:50;display:grid;place-items:start center;padding:2rem 1rem;overflow-y:auto}
+.ovl>.card{width:min(980px,100%)}
+.mv{max-width:10rem;font-size:.78rem;padding:.2rem .3rem}
+
+/* Impression du plan */
+#pr{display:none}
+body.printing>header,body.printing>.nav-wrap,body.printing>main{display:none!important}
+body.printing>#pr{display:block;padding:1rem;max-width:900px;margin:0 auto}
+.pr-sec{page-break-inside:avoid;border:1px solid #cbd5e1;border-radius:8px;padding:.7rem .9rem;margin-bottom:.7rem}
+.pr-sec h3{margin:0 0 .4rem;font-size:.95rem}
+.pr-sec table{width:100%;border-collapse:collapse;font-size:.8rem}
+.pr-sec td,.pr-sec th{border-bottom:1px solid #e2e8f0;padding:.22rem .4rem;text-align:left}
+@media print{body{background:#fff;color:#000}#pr{display:block!important}}
 </style>
 </head>
 <body>
@@ -145,6 +161,7 @@ summary:hover{color:var(--tx)}
     </div>
   </div>
   <div class="h-acts">
+    <button data-act="undo" title="Annuler la dernière action (Ctrl+Z)">↩ Annuler</button>
     <button data-act="link" id="blink" title="Synchroniser avec un fichier local">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       Lier un fichier…
@@ -161,15 +178,17 @@ summary:hover{color:var(--tx)}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exporter
     </button>
+    <span class="badge ok" id="sv" hidden></span>
   </div>
   <input type="file" id="file" accept=".json" hidden>
   <input type="file" id="csvfile" accept=".csv,.txt" hidden>
 </header>
 <div class="nav-wrap"><nav id="nav" aria-label="Sections"></nav></div>
 <main id="v"></main>
+<div id="pr"></div>
 
 <script>
-const K='sectorisation_v1',CATS={classroom:'Salle de classe',office:'Bureau',sanitary_ext:'Sanitaires externat',sanitary_int:'Sanitaires internat',bedroom:'Chambre',showers:'Douches',canteen:'Self',library:'CDI',gym:'Gymnase',stairs:'Escalier',circulation:'Circulation / Autre'};
+const K='sectorisation_v1',K2=K+'_bk',CATS={classroom:'Salle de classe',office:'Bureau',sanitary_ext:'Sanitaires externat',sanitary_int:'Sanitaires internat',bedroom:'Chambre',showers:'Douches',canteen:'Self',library:'CDI',gym:'Gymnase',stairs:'Escalier',circulation:'Circulation / Autre'};
 const R=(id,label,cat,when,k,a,b,f)=>({id,label,cat,when,k,a,b,f});
 const DEF=()=>({setup:10,days:5,cls:{c:25,d:15,v:5},rules:[
 R('san_ext','Sanitaires externat','sanitary_ext',null,'rate',1,1,[2,'d']),
@@ -197,11 +216,13 @@ const DEFM=()=>[
 {id:'hou',label:'Housse Micro flex',rules:[{k:'sector',n:2}]},
 {id:'fv',label:'Frange vitre microfibre',rules:[{k:'sector',n:3}]},
 {id:'gv',label:'Gant vitre microfibre',rules:[{k:'sector',n:1}]}];
-const fresh=()=>({tabs:['Dashboard','Locaux','Secteurs','Matériel','Paramètres'],b:[],r:[],s:[],p:DEF(),m:DEFM()});
+const fresh=()=>({tabs:['Dashboard','Locaux','Secteurs','Semaine','Tableau','Matériel','Paramètres'],b:[],r:[],s:[],p:DEF(),m:DEFM()});
 function norm(){
  if(!S.m)S.m=DEFM();
  if(!S.tabs.includes('Dashboard'))S.tabs.unshift('Dashboard');
  if(!S.tabs.includes('Matériel'))S.tabs.splice(3,0,'Matériel');
+ if(!S.tabs.includes('Semaine')){const i=S.tabs.indexOf('Secteurs');S.tabs.splice(i>=0?i+1:2,0,'Semaine')}
+ if(!S.tabs.includes('Tableau')){const i=S.tabs.indexOf('Semaine');if(i>=0)S.tabs.splice(i+1,0,'Tableau');else{const j=S.tabs.indexOf('Paramètres');S.tabs.splice(j>=0?j:S.tabs.length,0,'Tableau')}}
  if(!S.p.rules.some(r=>r.id=='circ'))S.p.rules.push(R('circ','Circulation / Autre','circulation',null,'rate',400,60,[1,'d']));
  S.r.forEach(r=>{if(r.category=='classroom'&&r.tables==null)r.tables=10;if(r.category.startsWith('sanitary')&&r.cuvettes==null)r.cuvettes=5});
 }
@@ -209,13 +230,49 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=s=>document.querySelector(s);
 const ok=o=>o&&Array.isArray(o.b)&&Array.isArray(o.r)&&Array.isArray(o.s)&&o.p&&Array.isArray(o.p.rules)&&Array.isArray(o.tabs);
+const num=(v,d,mx)=>{v=+v;return isFinite(v)&&v>=0&&(mx==null||v<=mx)?v:d};
+function sanitize(o){
+ const str=(v,n)=>typeof v=='string'?v.trim().slice(0,n):'';
+ const CATK=Object.keys(CATS),CCK=['*','~','san',...CATK];
+ if(!Array.isArray(o.tabs))o.tabs=['Dashboard','Locaux','Secteurs','Semaine','Matériel','Paramètres'];
+ o.tabs=o.tabs.filter(t=>typeof t=='string'&&t.trim()).map(t=>t.trim().slice(0,40));
+ if(!o.tabs.length)o.tabs=['Dashboard','Locaux','Secteurs','Semaine','Matériel','Paramètres'];
+ o.b=(Array.isArray(o.b)?o.b:[]).filter(x=>x&&str(x.name)).map(x=>({id:String(x.id||uid()).slice(0,12),name:str(x.name,80),code:String(x.code||'').trim().slice(0,10)}));
+ o.r=(Array.isArray(o.r)?o.r:[]).filter(x=>x&&str(x.name)&&x.bid&&o.b.some(b=>b.id==x.bid)&&num(x.area)>0).map(x=>{const m={id:String(x.id||uid()).slice(0,12),bid:String(x.bid),name:str(x.name,80),area:num(x.area),category:CATK.includes(x.category)?x.category:'circulation'};
+  if(m.category=='office')m.traffic=x.traffic=='low'?'low':'high';
+  if(m.category=='canteen')m.floor=x.floor=='flotex'?'flotex':'tile';
+  if(m.category=='bedroom')m.beds=Math.max(1,Math.round(num(x.beds,1)));
+  if(m.category=='showers')m.cells=Math.max(1,Math.round(num(x.cells,1)));
+  if(m.category=='classroom')m.tables=Math.round(num(x.tables,10));
+  if(m.category.startsWith('sanitary'))m.cuvettes=Math.round(num(x.cuvettes,5));
+  return m});
+ const rids=new Set(o.r.map(x=>x.id));
+ o.s=(Array.isArray(o.s)?o.s:[]).filter(x=>x&&str(x.name)).map(x=>{const fw={};if(x.fw&&typeof x.fw=='object')Object.entries(x.fw).forEach(([k,v])=>{if(typeof k=='string'&&isFinite(v)&&v>0)fw[k.slice(0,20)]=+v});
+  return {id:String(x.id||uid()).slice(0,12),name:str(x.name,80),avail:num(x.avail,495)>0?num(x.avail,495):495,it:(Array.isArray(x.it)?x.it:[]).filter(a=>a&&a.room&&rids.has(String(a.room))).map(a=>({room:String(a.room),rules:(Array.isArray(a.rules)?a.rules:[]).filter(v=>typeof v=='string').slice(0,20),fw}))}});
+ if(!o.p||typeof o.p!='object')o.p=DEF();
+ const p=o.p;p.setup=num(p.setup,10);p.days=Math.min(7,Math.max(1,Math.round(num(p.days,5,7))||5));
+ p.cls={c:num(p.cls&&p.cls.c,25),d:num(p.cls&&p.cls.d,15),v:num(p.cls&&p.cls.v,5)};
+ p.rules=(Array.isArray(p.rules)?p.rules:[]).filter(r=>r&&str(r.id)&&str(r.label)&&CATK.includes(r.cat)&&['rate','unit'].includes(r.k)).map(r=>({id:str(r.id,20),label:str(r.label,80),cat:r.cat,when:r.when&&typeof r.when=='object'&&!Array.isArray(r.when)&&Object.values(r.when).every(v=>typeof v=='string')?r.when:null,k:r.k,a:num(r.a,0),b:num(r.b,5)>0?num(r.b,5):5,f:Array.isArray(r.f)&&isFinite(r.f[0])&&r.f[0]>0?[+r.f[0],r.f[1]=='w'?'w':'d']:[1,'d']}));
+ if(!p.rules.length)p.rules=DEF().rules;
+ if(!Array.isArray(o.m))o.m=DEFM();
+ o.m=o.m.filter(x=>x&&str(x.label)).map(x=>({id:String(x.id||uid()).slice(0,12),label:str(x.label,80),rules:(Array.isArray(x.rules)?x.rules:[]).filter(u=>u&&['sector','room','area','unit'].includes(u.k)).map(u=>{const r2={k:u.k,n:Math.max(0,num(u.n,1))};if(u.k!='sector'){r2.c=CCK.includes(u.c)?u.c:'*';if(u.k=='unit')r2.u=['tables','cuvettes','beds','cells'].includes(u.u)?u.u:'tables'}return r2})}));
+ if(!o.m.length)o.m=DEFM();
+}
 let S;try{S=JSON.parse(localStorage.getItem(K));if(!ok(S))S=fresh()}catch(e){S=fresh()}
-norm();
+sanitize(S);norm();
 {const D=DEF().rules;S.p.rules.forEach(r=>{const d=D.find(x=>x.id==r.id);if(d)r.label=d.label})}
 let tab=S.tabs[0],day=0,fh=null,drag=null,edit=null,qLoc='',catLoc='',qSec='',collapsed=new Set();
+let undoStack=[],lastSnap=JSON.stringify(S),sup=false,imp=null,selR=new Set(),qTab='',catTab='';backup();
 
-async function write(){if(!fh)return;try{const w=await fh.createWritable();await w.write(JSON.stringify(S,null,1));await w.close()}catch(e){fh=null;head()}}
-function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}write()}
+async function write(){if(!fh)return;try{const w=await fh.createWritable();await w.write(JSON.stringify(S,null,1));await w.close()}catch(e){fh=null;$('#lk').textContent='Synchronisation fichier interrompue — pensez à exporter vos données'}}
+function save(){
+ if(!sup){undoStack.push(lastSnap);if(undoStack.length>30)undoStack.shift()}
+ lastSnap=JSON.stringify(S);
+ let err=false;try{localStorage.setItem(K,JSON.stringify(S))}catch(e){err=true}
+ updSv(err);write()}
+function undo(){if(!undoStack.length)return;S=JSON.parse(undoStack.pop());sanitize(S);norm();sup=true;save();sup=false;edit=null;render()}
+function backup(){try{const d=new Date().toDateString(),b=JSON.parse(localStorage.getItem(K2)||'null');if(!b||b.day!=d)localStorage.setItem(K2,JSON.stringify({day:d,d:S}))}catch(e){}}
+function updSv(err){const el=$('#sv');if(!el)return;el.hidden=false;el.textContent=err?'⚠ Sauvegarde locale impossible':'Enregistré '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});el.className='badge '+(err?'er':'ok')}
 function head(){$('#lk').textContent=fh?'Synchronisé avec : '+fh.name:'Gestion des surfaces, rotations et dotations';$('#blink').hidden=!window.showSaveFilePicker}
 
 // ── Moteur de calcul ──
@@ -246,12 +303,45 @@ const icoChev='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" strok
 
 function nav(){
  const counts={'Locaux':S.r.length,'Secteurs':S.s.length,'Matériel':S.m.length};
- $('#nav').innerHTML=S.tabs.map(t=>`<button draggable="true" data-tab="${t}" data-act="tab" class="${t==tab?'on':''}">${t}${counts[t]!=null?` <span class="cnt">${counts[t]}</span>`:''}</button>`).join('')
+ $('#nav').innerHTML=S.tabs.map((t,i)=>`<button draggable="true" data-ti="${i}" data-act="tab" class="${t==tab?'on':''}">${esc(t)}${counts[t]!=null?` <span class="cnt">${counts[t]}</span>`:''}</button>`).join('')
 }
-function render(){nav();$('#v').innerHTML=tab=='Dashboard'?vDash():tab=='Locaux'?vLoc():tab=='Secteurs'?vSec():tab=='Matériel'?vMat():vPar();head()}
+function render(){nav();$('#v').innerHTML=(imp?impView():'')+(tab=='Semaine'?vWeek():tab=='Tableau'?vTable():tab=='Dashboard'?vDash():tab=='Locaux'?vLoc():tab=='Secteurs'?vSec():tab=='Matériel'?vMat():vPar());head()}
 const sel=(n,o,v)=>`<select name="${n}">${o.map(([k,l])=>`<option value="${k}" ${k==v?'selected':''}>${l}</option>`).join('')}</select>`;
 const extra=(c,m)=>c=='office'?sel('traffic',[['high','Très fréquenté'],['low','Faiblement fréquenté']],m&&m.traffic):c=='canteen'?sel('floor',[['tile','Carrelage / sol souple'],['flotex','Flotex']],m&&m.floor):c=='bedroom'?`<input name="beds" type="number" min="1" step="1" value="${m&&m.beds||1}" aria-label="Nombre de lits"> <span class="mu">lit(s)</span>`:c=='showers'?`<input name="cells" type="number" min="1" step="1" value="${m&&m.cells||1}" aria-label="Cellules"> <span class="mu">cellule(s)</span>`:c=='classroom'?`<input name="tables" type="number" min="0" step="1" value="${m&&m.tables!=null?m.tables:10}" aria-label="Nombre de tables"> <span class="mu">table(s)</span>`:(c=='sanitary_ext'||c=='sanitary_int')?`<input name="cuvettes" type="number" min="0" step="1" value="${m&&m.cuvettes!=null?m.cuvettes:5}" aria-label="Nombre de cuvettes"> <span class="mu">cuvette(s)</span>`:'';
 const detail=m=>m.category=='office'?(m.traffic=='high'?'Très fréquenté':'Faiblement fréquenté'):m.category=='canteen'?(m.floor=='flotex'?'Flotex':'Carrelage / sol souple'):m.category=='bedroom'?m.beds+' lit(s)':m.category=='showers'?m.cells+' cellule(s)':m.category=='classroom'?(m.tables!=null?m.tables:10)+' tables':m.category.startsWith('sanitary')?(m.cuvettes!=null?m.cuvettes:5)+' cuvette(s)':'—';
+
+// ── Vue Semaine ──
+function vWeek(){
+ const days=S.p.days;
+ const stats=S.s.map(s=>({s,row:Array.from({length:days},(_,i)=>sday(s,i))}));
+ const dayTot=Array.from({length:days},(_,i)=>stats.reduce((a,x)=>a+x.row[i].tot,0));
+ const totAvail=S.s.reduce((a,s)=>a+s.avail,0);
+ return `<section class="card"><h2>Charge hebdomadaire par secteur</h2>
+ ${S.s.length?`<div class="tw"><table><thead><tr><th>Secteur</th>${Array.from({length:days},(_,i)=>`<th style="text-align:right">Jour ${i+1}</th>`).join('')}<th style="text-align:right">Semaine</th></tr></thead><tbody>
+ ${stats.map(({s,row})=>{const wk=row.reduce((a,d)=>a+d.tot,0);return `<tr><td><strong>${esc(s.name)}</strong> <span class="mu">(${s.it.length} pièce(s))</span></td>${row.map((d,i)=>{const cls=d.tot>s.avail?'er':d.tot>=.9*s.avail?'wa':'ok';const al=d.W.length+(d.tot>s.avail?1:0);return `<td style="text-align:right;white-space:nowrap"><button class="ghost" data-act="goday" data-d="${i}" title="Voir le jour ${i+1} dans Secteurs"><strong class="${cls}">${fm(d.tot)}</strong>${al?` <span class="badge wa">${al}⚠</span>`:''}</button></td>`}).join('')}<td style="text-align:right"><span class="badge ac">${fm(wk)}</span></td></tr>`}).join('')}
+ <tr><td><strong>Total</strong></td>${dayTot.map(t=>`<td style="text-align:right"><strong>${fm(t)}</strong> <span class="mu">/ ${fm(totAvail)}</span></td>`).join('')}<td style="text-align:right"><strong>${fm(dayTot.reduce((a,b)=>a+b,0))}</strong></td></tr>
+ </tbody></table></div>
+ <p class="mu" style="margin:.6rem 0 0">Capacité hebdomadaire : ${fm(totAvail*days)} pour ${S.s.length} secteur(s). Cliquez sur un temps pour ouvrir le jour correspondant dans Secteurs.</p>`
+ :'<p class="mu" style="margin:0">Créez des secteurs pour visualiser la charge de la semaine.</p>'}</section>`
+}
+
+// ── Vue Tableau (affectation rapide) ──
+function vTable(){
+ const rows=S.r.filter(r=>{const b=S.b.find(x=>x.id==r.bid);
+  return (!qTab||r.name.toLowerCase().includes(qTab.toLowerCase())||(b&&b.name.toLowerCase().includes(qTab.toLowerCase())))&&(!catTab||r.category==catTab)});
+ return `<section class="card">
+  <h2 style="justify-content:space-between">Affectation rapide <span class="badge ac">${rows.length} / ${S.r.length} pièce(s)</span></h2>
+  ${S.r.length?`<div class="row">
+   <div class="search-box">${icoSearch}<input id="qtab" placeholder="Rechercher une pièce ou un bâtiment…" value="${esc(qTab)}" style="width:16rem"></div>
+   <select id="cattab" aria-label="Filtrer par catégorie"><option value="">Toutes catégories</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${catTab==k?'selected':''}>${v}</option>`).join('')}</select>
+  </div>
+  ${rows.length?`<div class="tw" style="margin-top:.6rem"><table><thead><tr><th>Bâtiment</th><th>Pièce</th><th>Catégorie</th><th>Détail</th><th style="text-align:right">Surface</th><th>Secteur</th></tr></thead><tbody>
+   ${rows.map(r=>{const b=S.b.find(x=>x.id==r.bid),s=secOf(r.id);
+    return `<tr><td class="mu">${esc(b?b.name:'?')}</td><td><strong>${esc(r.name)}</strong></td><td><span class="badge">${CATS[r.category]||r.category}</span></td><td class="mu">${detail(r)}</td><td style="text-align:right">${r.area} m²</td><td><select class="mv" data-c="tsec" data-r="${r.id}" aria-label="Secteur de ${esc(r.name)}"><option value="">Non affecté</option>${S.s.map(x=>`<option value="${x.id}" ${s&&s.id==x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></td></tr>`}).join('')}
+  </tbody></table></div>${rows.length<S.r.length?`<p class="mu" style="margin:.5rem 0 0">${S.r.length-rows.length} pièce(s) masquée(s) par le filtre.</p>`:''}`:'<p class="mu" style="margin:.6rem 0 0">Aucune pièce ne correspond au filtre.</p>'}`
+  :'<p class="mu" style="margin:0">Aucune pièce enregistrée. Crée des locaux dans l’onglet Locaux.</p>'}
+ </section>`
+}
 
 // ── Vue Dashboard ──
 function vDash(){
@@ -293,7 +383,7 @@ function vDash(){
 
  return `
  <div class="toolbar" style="margin-top:0;margin-bottom:1.2rem">
-  <div class="row" style="margin:0"><strong style="font-size:.95rem">Synthèse d'exploitation</strong><span class="badge ac">${S.b.length} bâtiment(s)</span></div>
+  <div class="row" style="margin:0"><strong style="font-size:.95rem">Synthèse d'exploitation</strong><span class="badge ac">${S.b.length} bâtiment(s)</span><button data-act="print">Imprimer / PDF</button></div>
   <div class="row" style="margin:0"><span class="mu">Jour observé :</span><select data-c="day">${Array.from({length:S.p.days},(_,i)=>`<option value="${i}" ${i==day?'selected':''}>Jour ${i+1}</option>`).join('')}</select></div>
  </div>
 
@@ -401,7 +491,7 @@ function card(s){
  const stBadge=over?`<span class="badge er">+${Math.round(d.tot-s.avail)} min</span>`:warn?`<span class="badge wa">Reste ${Math.round(s.avail-d.tot)} min</span>`:`<span class="badge ok">Reste ${Math.round(s.avail-d.tot)} min</span>`;
  const items=s.it.map(a=>{const m=roomById(a.room);if(!m)return '';const c=S.p.rules.filter(r=>match(r,m));
   const ch=c.length>1?c.map(r=>`<label class="mu" style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.25rem"><input type="checkbox" data-c="rchk" data-s="${s.id}" data-r="${m.id}" data-x="${r.id}" ${a.rules.includes(r.id)?'checked':''}> ${r.label.replace(/^(Self|Gymnase), /,'')}</label>${r.f[1]=='w'&&a.rules.includes(r.id)?` <input type="number" step="0.5" min="0.5" data-c="rfw" data-s="${s.id}" data-r="${m.id}" data-x="${r.id}" value="${a.fw[r.id]||r.f[0]}" style="width:4.2rem;padding:.2rem .4rem"> <span class="mu">×/sem</span>`:''}`).join('<br>'):'';
-  return `<div class="it" draggable="true" data-drag="${m.id}"><div><strong>${esc(m.name)}</strong> <span class="mu">· ${CATS[m.category]||m.category} (${m.area} m²)</span></div><button class="ghost danger" data-act="rm" data-id="${m.id}" aria-label="Retirer ${esc(m.name)}">×</button>${ch?`<div style="width:100%">${ch}</div>`:''}</div>`}).join('');
+  return `<div class="it" draggable="true" data-drag="${m.id}"><div><strong>${esc(m.name)}</strong> <span class="mu">· ${CATS[m.category]||m.category} (${m.area} m²)</span></div><button class="ghost danger" data-act="rm" data-id="${m.id}" aria-label="Retirer ${esc(m.name)}">×</button><select class="mv" data-c="mvfrom" data-r="${m.id}" aria-label="Déplacer vers un autre secteur"><option value="${s.id}">Secteur actuel</option>${S.s.filter(x=>x.id!=s.id).map(x=>`<option value="${x.id}">→ ${esc(x.name)}</option>`).join('')}<option value="">Non affecté</option></select>${ch?`<div style="width:100%">${ch}</div>`:''}</div>`}).join('');
 
  return `<section class="card sec-card ${isCol?'collapsed':''}" data-zone="${s.id}">
   <div class="row" style="margin-bottom:${isCol?'0':'.5rem'}">
@@ -433,22 +523,26 @@ function card(s){
  </section>`
 }
 
+const selBarHTML=()=>selR.size?`<div class="row" style="margin:.45rem 0 0;gap:.4rem"><span class="badge ac">${selR.size} sélectionnée(s)</span><select class="mv" data-c="selmv" aria-label="Affecter la sélection à un secteur"><option value="">→ secteur…</option>${S.s.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}<option value="!">Retirer des secteurs</option></select><button class="ghost" data-act="selall">Tout cocher</button><button class="ghost" data-act="selclear">Effacer</button></div>`:'';
+
 function vSec(){
  const unAll=S.r.filter(r=>!secOf(r.id));
  const un=unAll.filter(r=>!qSec||r.name.toLowerCase().includes(qSec.toLowerCase())||(CATS[r.category]||'').toLowerCase().includes(qSec.toLowerCase()));
+ [...selR].forEach(id=>{if(!unAll.some(r=>r.id==id))selR.delete(id)});
  const allCol=S.s.length>0&&S.s.every(s=>collapsed.has(s.id));
  return `<div class="toolbar" style="margin-top:0;margin-bottom:1.15rem">
   <div class="row" style="margin:0">
    <button class="p" data-act="nsec">+ Nouveau secteur</button>
    ${S.s.length?`<button data-act="${allCol?'expall':'colall'}">${allCol?'Tout déplier':'Tout replier'}</button>`:''}
+   ${S.s.length?'<button data-act="exptime">Exporter temps (CSV)</button><button data-act="print">Imprimer / PDF</button>':''}
   </div>
   <div class="row" style="margin:0"><span class="mu">Jour de rotation :</span><select data-c="day">${Array.from({length:S.p.days},(_,i)=>`<option value="${i}" ${i==day?'selected':''}>Jour ${i+1}</option>`).join('')}</select></div>
  </div>
  <div class="lay">
   <section class="card sticky-col">
    <h2 style="justify-content:space-between">Non affectées <span class="badge ac">${unAll.length}</span></h2>
-   ${unAll.length?`<div class="search-box" style="width:100%;margin-bottom:.4rem">${icoSearch}<input id="qsec" placeholder="Filtrer les pièces…" style="width:100%" value="${esc(qSec)}"></div>`:''}
-   <div class="zone scroll-zone ${un.length?'':'empty'}" data-zone="">${un.map(m=>`<div class="chip" draggable="true" data-drag="${m.id}"><div><strong>${esc(m.name)}</strong><div class="mu">${CATS[m.category]||m.category}</div></div><span class="badge">${m.area} m²</span></div>`).join('')||`<span class="mu">${unAll.length?'Aucun résultat.':'Toutes les pièces sont affectées.'}</span>`}</div>
+   ${unAll.length?`<div class="search-box" style="width:100%;margin-bottom:.4rem">${icoSearch}<input id="qsec" placeholder="Filtrer les pièces…" style="width:100%" value="${esc(qSec)}"></div><div id="selbar">${selBarHTML()}</div>`:''}
+   <div class="zone scroll-zone ${un.length?'':'empty'}" data-zone="">${un.map(m=>`<div class="chip" draggable="true" data-drag="${m.id}"><input type="checkbox" data-c="selr" data-r="${m.id}" ${selR.has(m.id)?'checked':''} aria-label="Sélectionner ${esc(m.name)}" style="margin:0;flex-shrink:0"><div><strong>${esc(m.name)}</strong><div class="mu">${CATS[m.category]||m.category}</div></div><span class="badge">${m.area} m²</span><select class="mv" data-c="mvto" data-r="${m.id}" aria-label="Affecter à un secteur"><option value="">→ secteur…</option>${S.s.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>`).join('')||`<span class="mu">${unAll.length?'Aucun résultat.':'Toutes les pièces sont affectées.'}</span>`}</div>
   </section>
   <div class="secs">${S.s.map(card).join('')||'<div class="card"><p class="mu" style="margin:0">Clique sur <strong>+ Nouveau secteur</strong> pour créer une tournée d’agent, puis glisse-y des pièces.</p></div>'}</div>
  </div>`
@@ -463,6 +557,10 @@ function vPar(){
   <h2 style="margin-top:1.4rem">Cadences par type de local</h2>
   <div class="tw"><table><thead><tr><th>Règle</th><th>Cadence de calcul</th><th>Fréquence</th></tr></thead><tbody>${p.rules.map((r,i)=>`<tr><td><strong>${r.label}</strong></td><td>${r.k=='rate'?N(r.a,`data-c="pr" data-i="${i}" data-x="a"`)+' <span class="mu">m² en</span> '+N(r.b,`data-c="pr" data-i="${i}" data-x="b"`)+' <span class="mu">min</span>':N(r.b,`data-c="pr" data-i="${i}" data-x="b"`)+' <span class="mu">min par '+(r.cat=='bedroom'?'lit':'cellule')+'</span>'}</td><td>${N(r.f[0],`data-c="pf" data-i="${i}"`)} <select data-c="pfu" data-i="${i}"><option value="d" ${r.f[1]=='d'?'selected':''}>par jour</option><option value="w" ${r.f[1]=='w'?'selected':''}>par semaine</option></select></td></tr>`).join('')}</tbody></table></div>
   <div class="row" style="justify-content:space-between;margin-top:1rem"><span class="mu">Une fréquence hebdomadaire est ramenée au quotidien (÷ jours ouvrés).</span><button class="danger" data-act="reset">Rétablir les paramètres par défaut</button></div>
+ </section>
+ <section class="card" style="margin-top:1.15rem"><h2>Sauvegarde automatique</h2>
+  <p class="mu" style="margin:0 0 .6rem">Une copie des données est conservée chaque jour dans le navigateur, en complément de la sauvegarde principale.</p>
+  ${(()=>{try{const b=JSON.parse(localStorage.getItem(K2)||'null');return b&&b.d?`<div class="row"><span class="badge ok">Sauvegarde du ${new Date(b.day).toLocaleDateString('fr-FR')}</span><button data-act="restbk">Restaurer cette sauvegarde</button></div>`:'<p class="mu" style="margin:0">Aucune sauvegarde disponible pour le moment.</p>'}catch(e){return ''}})()}
  </section>`
 }
 
@@ -483,7 +581,7 @@ function ruleRow(i,j,u){
   `<button class="ghost danger" data-act="mruledel" data-mi="${i}" data-ri="${j}" aria-label="Supprimer la règle">×</button></div>`}
 function vMat(){
  const q=S.m.map(m=>S.s.map(s=>qty(m,s)));
- return `<section class="card"><h2>Besoins en matériel par secteur</h2>${S.s.length?`<div class="tw"><table><thead><tr><th>Matériel</th>${S.s.map(s=>`<th>${esc(s.name)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${S.m.map((m,i)=>`<tr><td><strong>${esc(m.label)}</strong></td>${q[i].map(v=>`<td>${v}</td>`).join('')}<td><span class="badge ac">${q[i].reduce((a,b)=>a+b,0)}</span></td></tr>`).join('')}</tbody></table></div><p class="mu" style="margin:.6rem 0 0">Quantités arrondies à l’unité supérieure pour chaque secteur.</p>`:'<p class="mu" style="margin:0">Crée des secteurs et affecte-leur des pièces pour calculer les dotations en matériel.</p>'}</section>
+ return `<section class="card"><h2 style="justify-content:space-between">Besoins en matériel par secteur <button data-act="expmat" ${S.s.length?'':'disabled'}>Exporter CSV</button></h2>${S.s.length?`<div class="tw"><table><thead><tr><th>Matériel</th>${S.s.map(s=>`<th>${esc(s.name)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${S.m.map((m,i)=>`<tr><td><strong>${esc(m.label)}</strong></td>${q[i].map(v=>`<td>${v}</td>`).join('')}<td><span class="badge ac">${q[i].reduce((a,b)=>a+b,0)}</span></td></tr>`).join('')}</tbody></table></div><p class="mu" style="margin:.6rem 0 0">Quantités arrondies à l’unité supérieure pour chaque secteur.</p>`:'<p class="mu" style="margin:0">Crée des secteurs et affecte-leur des pièces pour calculer les dotations en matériel.</p>'}</section>
  <section class="card" style="margin-top:1.15rem"><h2>Règles de calcul du matériel</h2>${S.m.map((m,i)=>`<div class="rule-box"><div class="row"><input data-c="mlab" data-mi="${i}" value="${esc(m.label)}" aria-label="Nom du matériel" style="font-weight:650;flex:1"><button class="ghost danger" data-act="mdel" data-mi="${i}">Supprimer</button></div>${m.rules.map((u,j)=>ruleRow(i,j,u)).join('')}<button data-act="mrule" data-mi="${i}" style="margin-top:.3rem">+ Ajouter une règle</button></div>`).join('')}
  <form data-f="m" class="row" style="margin-top:.9rem"><input name="label" placeholder="Nom du nouveau matériel" style="flex:1;max-width:320px" required><button class="p">+ Ajouter un matériel</button></form>
  <div class="row" style="justify-content:space-between;margin-top:1rem"><span class="mu">Les règles d’un même matériel s’additionnent automatiquement.</span><button class="danger" data-act="mreset">Rétablir le matériel par défaut</button></div></section>`
@@ -517,53 +615,115 @@ function mapCat(raw){
  if(s.includes('escalier'))return 'stairs';
  return 'circulation'}
 
-function importCSVText(txt){
+const IMPCOLS=[['bat','Bâtiment',['batiment']],['code','Code étab.',['code']],['piece','Pièce',['piece','local','nom']],['surf','Surface (m²)',['surface','m2']],['cat','Catégorie',['categorie']],['freq','Fréquentation',['frequentation']],['sol','Sol',['sol']],['lits','Lits',['lit']],['cells','Cellules',['cellule']],['tab','Tables',['table']],['cuv','Cuvettes',['cuvette']]];
+function openImp(txt){
  const rows=parseCSV(txt);
  if(rows.length<2){alert('Le fichier CSV semble vide ou ne contient que des en-têtes.');return}
  const hdr=rows[0].map(cleanH);
  const col=(...keys)=>hdr.findIndex(h=>keys.some(k=>h.startsWith(k)||h.includes(k)));
- const iBat=col('batiment'),iCode=col('code'),iPiece=col('piece','local','nom'),iSurf=col('surface','m2'),iCat=col('categorie'),iFreq=col('frequentation'),iSol=col('sol'),iLits=col('lit'),iCell=col('cellule'),iTab=col('table'),iCuv=col('cuvette');
- if(iBat<0||iPiece<0||iSurf<0){alert('Colonnes obligatoires introuvables (Bâtiment, Pièce, Surface).');return}
-
- const replace=S.b.length||S.r.length?confirm('OK = Remplacer tous les bâtiments et pièces actuels par ce CSV.\nAnnuler = Ajouter/fusionner avec les données existantes.'):true;
- const newB=replace?[]:[...S.b],newR=replace?[]:[...S.r];
+ const map={};IMPCOLS.forEach(([k,,keys])=>{map[k]=col(...keys)});
+ imp={rows,map,mode:S.b.length||S.r.length?'merge':'replace',result:null};
+ render()
+}
+function impRow(r){
+ const g=x=>imp.map[x]>=0?(r[imp.map[x]]||'').trim():'';
+ const area=parseFloat(g('surf').replace(/\s/g,'').replace(',','.'));
+ const cat=mapCat(g('cat'));
+ return{bName:g('bat'),rName:g('piece'),area,cat,err:!g('bat')?'bâtiment manquant':!g('piece')?'pièce manquante':!(area>0)?'surface invalide ou manquante':null}
+}
+function impView(){
+ const i=imp;
+ if(i.result){const r=i.result;
+  return `<div class="ovl"><section class="card"><h2>Import terminé</h2><p style="margin:.2rem 0 .8rem">• ${r.addedB} bâtiment(s) créé(s)<br>• ${r.addedR} pièce(s) ajoutée(s)${r.updatedR?`<br>• ${r.updatedR} pièce(s) mise(s) à jour`:''}${r.skipped?`<br>• ${r.skipped} ligne(s) ignorée(s)`:''}</p><div class="row"><button class="p" data-act="impclose">Fermer</button></div></section></div>`}
+ const issues=[];
+ i.rows.slice(1).forEach((r,ri)=>{const e=impRow(r);if(e.err)issues.push(`Ligne ${ri+2} : ${e.err}`)});
+ const missing=['bat','piece','surf'].filter(k=>i.map[k]<0).map(k=>IMPCOLS.find(c=>c[0]==k)[1]);
+ const SE=k=>`<select data-c="imap" data-f="${k}" aria-label="Colonne pour ${k}"><option value="-1" ${i.map[k]<0?'selected':''}>—</option>${i.rows[0].map((h,hi)=>`<option value="${hi}" ${i.map[k]==hi?'selected':''}>${esc(h)||'Colonne '+(hi+1)}</option>`).join('')}</select>`;
+ const prev=i.rows.slice(1,9).map((r,ri)=>{const d=impRow(r);
+  return `<tr><td>${ri+2}</td><td>${esc(d.bName)||'<span class="er">—</span>'}</td><td>${esc(d.rName)||'<span class="er">—</span>'}</td><td>${d.area>0?d.area:'<span class="er">?</span>'}</td><td><span class="badge">${CATS[d.cat]}</span></td><td class="${d.err?'er':'ok'}">${d.err||'✓'}</td></tr>`}).join('');
+ return `<div class="ovl"><section class="card">
+  <h2>Aperçu de l'import CSV</h2>
+  <p class="mu" style="margin:0 0 .8rem">${i.rows.length-1} ligne(s) de données détectée(s). Vérifiez la correspondance des colonnes, puis lancez l'import.</p>
+  ${missing.length?`<div class="alert-wa">⚠ Colonne(s) obligatoire(s) non détectée(s) : ${missing.join(', ')} — associez-les manuellement ci-dessous.</div>`:''}
+  <h2 style="margin-top:.9rem">Correspondance des colonnes</h2>
+  <div class="row">${IMPCOLS.map(([k,l])=>`<label class="mu" style="display:inline-flex;flex-direction:column;gap:.15rem;font-size:.75rem">${l}${SE(k)}</label>`).join('')}</div>
+  <h2 style="margin-top:.9rem">Aperçu des premières lignes</h2>
+  <div class="tw"><table><thead><tr><th>Ligne</th><th>Bâtiment</th><th>Pièce</th><th>Surface</th><th>Catégorie détectée</th><th>Statut</th></tr></thead><tbody>${prev}</tbody></table></div>
+  ${issues.length?`<details ${issues.length<8?'open':''}><summary>${issues.length} ligne(s) seront ignorée(s)</summary><div class="mu" style="margin-top:.4rem">${issues.slice(0,10).map(esc).join('<br>')}${issues.length>10?`<br>… et ${issues.length-10} autre(s)`:''}</div></details>`:'<p class="ok" style="margin:.6rem 0 0">Aucune ligne rejetée.</p>'}
+  <div class="row" style="margin-top:1rem">
+   <span class="mu">Mode :</span>
+   <label style="display:inline-flex;align-items:center;gap:.3rem"><input type="radio" name="imode" value="replace" ${i.mode=='replace'?'checked':''}> Remplacer les données actuelles</label>
+   <label style="display:inline-flex;align-items:center;gap:.3rem"><input type="radio" name="imode" value="merge" ${i.mode=='merge'?'checked':''}> Fusionner avec les données actuelles</label>
+  </div>
+  <div class="row" style="margin-top:.6rem">
+   <button class="p" data-act="impgo" ${missing.length?'disabled':''}>Lancer l'import</button>
+   <button data-act="impcancel">Annuler</button>
+  </div>
+ </section></div>`
+}
+function applyImport(){
+ const i=imp,m=i.map,g=(r,x)=>m[x]>=0?(r[m[x]]||'').trim():'';
+ const newB=i.mode=='replace'?[]:[...S.b],newR=i.mode=='replace'?[]:[...S.r];
  let addedB=0,addedR=0,updatedR=0,skipped=0;
-
- for(let i=1;i<rows.length;i++){
-  const r=rows[i];
-  const bName=(r[iBat]||'').trim(),rName=(r[iPiece]||'').trim();
-  const area=parseFloat(String(r[iSurf]||'').replace(/\s/g,'').replace(',','.'));
-  if(!bName||!rName||!(area>0)){skipped++;continue}
-  let code=iCode>=0?(r[iCode]||'').trim().toUpperCase():'';
+ for(let k=1;k<i.rows.length;k++){
+  const r=i.rows[k],d=impRow(r);
+  if(d.err){skipped++;continue}
+  let code=g(r,'code').toUpperCase();
   if(!/^\d{7}[A-Z]$/.test(code))code='0000000A';
-
-  let bat=newB.find(b=>b.name.toLowerCase()==bName.toLowerCase());
-  if(!bat){bat={id:uid(),name:bName,code};newB.push(bat);addedB++}
-
-  const cat=mapCat(iCat>=0?r[iCat]:'');
-  const room={id:uid(),bid:bat.id,name:rName,area,category:cat};
-  if(cat=='office'){const f=cleanH(iFreq>=0?r[iFreq]:'');room.traffic=f.includes('faible')?'low':'high'}
-  if(cat=='canteen'){const fl=cleanH(iSol>=0?r[iSol]:'');room.floor=fl.includes('flotex')?'flotex':'tile'}
-  if(cat=='bedroom'){const v=parseInt(iLits>=0?r[iLits]:'',10);room.beds=v>0?v:1}
-  if(cat=='showers'){const v=parseInt(iCell>=0?r[iCell]:'',10);room.cells=v>0?v:1}
-  if(cat=='classroom'){const v=parseInt(iTab>=0?r[iTab]:'',10);room.tables=!isNaN(v)&&v>=0?v:10}
-  if(cat.startsWith('sanitary')){const v=parseInt(iCuv>=0?r[iCuv]:'',10);room.cuvettes=!isNaN(v)&&v>=0?v:5}
-
-  const ex=newR.find(x=>x.bid==bat.id&&x.name.toLowerCase()==rName.toLowerCase());
+  let bat=newB.find(b=>b.name.toLowerCase()==d.bName.toLowerCase());
+  if(!bat){bat={id:uid(),name:d.bName,code};newB.push(bat);addedB++}
+  const room={id:uid(),bid:bat.id,name:d.rName,area:d.area,category:d.cat};
+  if(d.cat=='office'){const f=cleanH(g(r,'freq'));room.traffic=f.includes('faible')?'low':'high'}
+  if(d.cat=='canteen'){const fl=cleanH(g(r,'sol'));room.floor=fl.includes('flotex')?'flotex':'tile'}
+  if(d.cat=='bedroom'){const v=parseInt(g(r,'lits'),10);room.beds=v>0?v:1}
+  if(d.cat=='showers'){const v=parseInt(g(r,'cells'),10);room.cells=v>0?v:1}
+  if(d.cat=='classroom'){const v=parseInt(g(r,'tab'),10);room.tables=!isNaN(v)&&v>=0?v:10}
+  if(d.cat.startsWith('sanitary')){const v=parseInt(g(r,'cuv'),10);room.cuvettes=!isNaN(v)&&v>=0?v:5}
+  const ex=newR.find(x=>x.bid==bat.id&&x.name.toLowerCase()==d.rName.toLowerCase());
   if(ex){room.id=ex.id;newR[newR.indexOf(ex)]=room;updatedR++}
   else{newR.push(room);addedR++}
  }
- if(!addedR&&!updatedR){alert('Aucune pièce valide trouvée dans le fichier CSV.');return}
+ if(!addedR&&!updatedR){i.result={addedB:0,addedR:0,updatedR:0,skipped};render();return}
  S.b=newB;S.r=newR;
  const validIds=new Set(S.r.map(x=>x.id));
  S.s.forEach(s=>s.it=s.it.filter(a=>validIds.has(a.room)));
- edit=null;tab='Locaux';save();render();
- alert(`Import CSV terminé :\n• ${addedB} bâtiment(s) créé(s)\n• ${addedR} pièce(s) ajoutée(s)`+(updatedR?`\n• ${updatedR} pièce(s) mise(s) à jour`:'')+(skipped?`\n• ${skipped} ligne(s) ignorée(s)`:''));
+ edit=null;save();
+ i.result={addedB,addedR,updatedR,skipped};render()
+}
+
+// ── Exports CSV & impression ──
+const csvOf=rows=>'\uFEFF'+rows.map(r=>r.map(c=>{c=String(c);return /[;"\n\r]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(';')).join('\r\n');
+function dl(name,txt,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:mime||'text/csv;charset=utf-8'}));a.download=name;a.click()}
+function printDoc(){
+ const days=S.p.days;
+ return `<h2 style="margin:0 0 .2rem">Plan de sectorisation</h2><p class="mu" style="margin:0 0 1rem">${S.b.length} bâtiment(s) · ${S.r.length} pièce(s) · ${S.s.length} secteur(s) · édité le ${new Date().toLocaleDateString('fr-FR')}</p>
+ ${Array.from({length:days},(_,dy)=>`<h3 style="margin:1rem 0 .5rem">Jour ${dy+1}</h3>
+  ${S.s.map(s=>{const d=sday(s,dy);
+   return `<div class="pr-sec"><h3>${esc(s.name)} — ${fm(d.tot)} / ${fm(s.avail)} min</h3>
+    <table><tbody>${d.L.map(l=>`<tr><td>${esc(l.l)}</td><td style="text-align:right;width:6rem">${Math.round(l.m)} min</td></tr>`).join('')||'<tr><td>Aucune tâche</td><td></td></tr>'}</tbody></table>
+    ${d.W.map(w=>`<div class="wa" style="font-size:.8rem">⚠ ${esc(w)}</div>`).join('')}
+    ${S.m.length?`<table style="margin-top:.4rem"><tbody><tr><th>Matériel</th>${S.m.map(m=>`<th style="text-align:right">${esc(m.label)}</th>`).join('')}</tr><tr><td>Dotation</td>${S.m.map(m=>`<td style="text-align:right">${qty(m,s)}</td>`).join('')}</tr></tbody></table>`:''}
+   </div>`}).join('')||'<p class="mu">Aucun secteur.</p>'}`).join('')}`
 }
 
 // ── Actions & Événements ──
 const acts={
- tab:d=>{tab=d.tab;edit=null;render()},
+ tab:d=>{tab=d.ti!=null?S.tabs[+d.ti]:d.tab;edit=null;render()},
+ undo:()=>undo(),
+ goday:d=>{day=+d.d;tab='Secteurs';render()},
+ print:()=>{$('#pr').innerHTML=printDoc();document.body.classList.add('printing');window.print()},
+ exptime:()=>{const days=S.p.days,rows=[['Secteur','Jour','Local / tâche','Type','Minutes']];
+  S.s.forEach(s=>{for(let dy=0;dy<days;dy++){const d=sday(s,dy);d.L.forEach(l=>rows.push([s.name,'Jour '+(dy+1),l.l,l.t==0?'Prise de poste':l.t==1?'Classe':'Autre local',Math.round(l.m*10)/10]))}});
+  dl('temps_secteurs.csv',csvOf(rows))},
+ expmat:()=>{const rows=[['Matériel',...S.s.map(s=>s.name),'Total']];
+  S.m.forEach(m=>{const q=S.s.map(s=>qty(m,s));rows.push([m.label,...q,q.reduce((a,b)=>a+b,0)])});
+  dl('dotations_materiel.csv',csvOf(rows))},
+ selall:()=>{S.r.filter(r=>!secOf(r.id)&&(!qSec||r.name.toLowerCase().includes(qSec.toLowerCase())||(CATS[r.category]||'').toLowerCase().includes(qSec.toLowerCase()))).forEach(r=>selR.add(r.id));render()},
+ selclear:()=>{selR.clear();render()},
+ impgo:()=>applyImport(),
+ impcancel:()=>{imp=null;render()},
+ impclose:()=>{imp=null;tab='Locaux';render()},
+ restbk:()=>{try{const b=JSON.parse(localStorage.getItem(K2)||'null');if(!b||!b.d)return;if(!confirm('Restaurer la sauvegarde du '+new Date(b.day).toLocaleDateString('fr-FR')+' ? Les données actuelles seront remplacées (Ctrl+Z pour annuler).'))return;S=JSON.parse(JSON.stringify(b.d));sanitize(S);norm();tab=S.tabs[0];save();render()}catch(e){}},
  toggle:d=>{if(collapsed.has(d.id))collapsed.delete(d.id);else collapsed.add(d.id);render()},
  colall:()=>{S.s.forEach(s=>collapsed.add(s.id));render()},
  expall:()=>{collapsed.clear();render()},
@@ -597,26 +757,42 @@ document.addEventListener('input',e=>{
  const id=e.target.id;
  if(id=='qloc'){qLoc=e.target.value;const pos=e.target.selectionStart;render();const el=$('#qloc');if(el){el.focus();el.setSelectionRange(pos,pos)}}
  else if(id=='qsec'){qSec=e.target.value;const pos=e.target.selectionStart;render();const el=$('#qsec');if(el){el.focus();el.setSelectionRange(pos,pos)}}
+ else if(id=='qtab'){qTab=e.target.value;const pos=e.target.selectionStart;render();const el=$('#qtab');if(el){el.focus();el.setSelectionRange(pos,pos)}}
 });
 
-function move(rid,sid){
+function moveMany(ids,sid){
+ const to=sid?S.s.find(s=>s.id==sid):null;
+ ids.forEach(rid=>{const from=secOf(rid);if(from==to)return;if(from)from.it=from.it.filter(a=>a.room!=rid);if(to)to.it.push({room:rid,rules:[],fw:{}})});
+ selR.clear();save();render()}
+
+function move(rid,sid,silent){
  const m=roomById(rid),from=secOf(rid),to=S.s.find(s=>s.id==sid);if(from==to)return;
- const q=!to?'Retirer « '+m.name+' » du secteur « '+from.name+' » ?':from?'Déplacer « '+m.name+' » de « '+from.name+' » vers « '+to.name+' » ?':'Ajouter « '+m.name+' » au secteur « '+to.name+' » ?';
- if(!confirm(q))return;if(from)from.it=from.it.filter(a=>a.room!=rid);
+ if(!silent){const q=!to?'Retirer « '+m.name+' » du secteur « '+from.name+' » ?':from?'Déplacer « '+m.name+' » de « '+from.name+' » vers « '+to.name+' » ?':'Ajouter « '+m.name+' » au secteur « '+to.name+' » ?';
+  if(!confirm(q))return}
+ if(from)from.it=from.it.filter(a=>a.room!=rid);
  if(to)to.it.push({room:rid,rules:[],fw:{}});save();render()}
 
-document.addEventListener('dragstart',e=>{const t=e.target.closest('[data-drag],[data-tab]');if(!t)return;drag=t.dataset.drag?{room:t.dataset.drag}:{tab:t.dataset.tab};e.dataTransfer.setData('text/plain','x')});
-document.addEventListener('dragover',e=>{if(e.target.closest('[data-zone]')||(drag&&drag.tab&&e.target.closest('[data-tab]')))e.preventDefault();document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'));const z=drag&&drag.room&&e.target.closest('[data-zone]');if(z)z.classList.add('over')});
+document.addEventListener('dragstart',e=>{const t=e.target.closest('[data-drag],[data-ti],[data-tab]');if(!t)return;drag=t.dataset.drag?{room:t.dataset.drag}:t.dataset.ti!=null?{ti:+t.dataset.ti}:{tab:t.dataset.tab};e.dataTransfer.setData('text/plain','x')});
+document.addEventListener('dragover',e=>{if(e.target.closest('[data-zone]')||((drag&&(drag.tab||drag.ti!=null))&&e.target.closest('[data-ti]')))e.preventDefault();document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'));const z=drag&&drag.room&&e.target.closest('[data-zone]');if(z)z.classList.add('over')});
 document.addEventListener('drop',e=>{if(!drag)return;e.preventDefault();document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'));
- if(drag.tab){const t=e.target.closest('[data-tab]');if(t&&t.dataset.tab!=drag.tab){const a=S.tabs,i=a.indexOf(drag.tab);a.splice(i,1);a.splice(a.indexOf(t.dataset.tab),0,drag.tab);save();render()}}
+ if(drag.tab||drag.ti!=null){const t=e.target.closest('[data-ti]');if(t&&+t.dataset.ti!=drag.ti){const a=S.tabs,from=drag.ti!=null?drag.ti:a.indexOf(drag.tab);if(from>=0){const [x]=a.splice(from,1);const to=+t.dataset.ti;a.splice(to>from?to-1:to,0,x);save();render()}}}
  else{const z=e.target.closest('[data-zone]');if(z)move(drag.room,z.dataset.zone)}drag=null});
 document.addEventListener('dragend',()=>{drag=null;document.querySelectorAll('.over').forEach(z=>z.classList.remove('over'))});
 
 document.addEventListener('change',e=>{
  const t=e.target,c=t.dataset.c;
  if(t.id=='catloc'){catLoc=t.value;render();return}
+ if(t.id=='cattab'){catTab=t.value;render();return}
  if(t.name=='category'&&t.closest('form')){$('#ex').innerHTML=extra(t.value,edit&&edit.t=='r'?roomById(edit.id):null);return}
- if(!c)return;const sec=S.s.find(s=>s.id==t.dataset.s),it=sec&&sec.it.find(a=>a.room==t.dataset.r),n=+t.value,p=S.p;
+ if(t.name=='imode'){imp.mode=t.value;return}
+ if(!c)return;
+ if(c=='imap'){imp.map[t.dataset.f]=+t.value;render();return}
+ if(c=='selr'){if(t.checked)selR.add(t.dataset.r);else selR.delete(t.dataset.r);const b=$('#selbar');if(b)b.innerHTML=selBarHTML();return}
+ if(c=='selmv'){if(t.value)moveMany([...selR],t.value=='!'?'':t.value);return}
+ if(c=='tsec'){move(t.dataset.r,t.value,true);return}
+ if(c=='mvto'){if(t.value)move(t.dataset.r,t.value,true);return}
+ if(c=='mvfrom'){move(t.dataset.r,t.value,true);return}
+ const sec=S.s.find(s=>s.id==t.dataset.s),it=sec&&sec.it.find(a=>a.room==t.dataset.r),n=+t.value,p=S.p;
  if(c=='day'){day=n;render();return}
  if(c=='sname'){sec.name=t.value.trim()||sec.name}
  else if(c=='savail'){if(n>0)sec.avail=n}
@@ -654,8 +830,11 @@ $('#file').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;
  rd.onload=()=>{try{const o=JSON.parse(rd.result);if(!ok(o))throw 0;if(!confirm('Remplacer les données actuelles par ce fichier ?'))return;S=o;norm();tab=S.tabs[0];save();render()}catch(x){alert('Fichier non reconnu : choisis un fichier exporté par cet outil.')}};
  rd.readAsText(f);e.target.value=''});
 $('#csvfile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
- rd.onload=()=>importCSVText(rd.result);
+ rd.onload=()=>openImp(rd.result);
  rd.readAsText(f,'UTF-8');e.target.value=''});
+
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()=='z'&&!e.target.closest('input,textarea,select')){e.preventDefault();undo()}});
+window.addEventListener('afterprint',()=>{document.body.classList.remove('printing');$('#pr').innerHTML=''});
 
 render();
 </script>
