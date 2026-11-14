@@ -13,12 +13,12 @@
   --sh-md:0 4px 12px rgba(15,23,42,.07);
   --r:12px;--rs:8px;
 }
-@media(prefers-color-scheme:dark){:root{
+:root.dark{
   --bg:#0b111a;--sf:#131c28;--sf2:#192433;--tx:#f1f5f9;--mu:#94a3b8;--bd:#233042;--bd2:#334155;
   --ac:#38bdf8;--ac-h:#7dd3fc;--ac-bg:rgba(56,189,248,.14);--ac-tx:#7dd3fc;
   --ok:#34d399;--ok-bg:rgba(52,211,153,.14);--wa:#fbbf24;--wa-bg:rgba(251,191,36,.14);--er:#f87171;--er-bg:rgba(248,113,113,.14);
   --sh:0 1px 3px rgba(0,0,0,.3);--sh-md:0 6px 16px rgba(0,0,0,.4);
-}}
+}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:14.5px/1.5 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
 
@@ -162,6 +162,7 @@ body.printing>#pr{display:block;padding:1rem;max-width:900px;margin:0 auto}
   </div>
   <div class="h-acts">
     <button data-act="undo" title="Annuler la dernière action (Ctrl+Z)">↩ Annuler</button>
+    <button data-act="theme" id="btheme" title="Basculer le thème : auto → clair → sombre">Thème : auto</button>
     <button data-act="link" id="blink" title="Synchroniser avec un fichier local">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       Lier un fichier…
@@ -190,7 +191,7 @@ body.printing>#pr{display:block;padding:1rem;max-width:900px;margin:0 auto}
 <script>
 const K='sectorisation_v1',K2=K+'_bk',CATS={classroom:'Salle de classe',office:'Bureau',sanitary_ext:'Sanitaires externat',sanitary_int:'Sanitaires internat',bedroom:'Chambre',showers:'Douches',canteen:'Self',library:'CDI',gym:'Gymnase',stairs:'Escalier',circulation:'Circulation / Autre'};
 const R=(id,label,cat,when,k,a,b,f)=>({id,label,cat,when,k,a,b,f});
-const DEF=()=>({setup:10,days:5,cls:{c:25,d:15,v:5},rules:[
+const DEF=()=>({setup:10,days:5,cls:{c:25,d:15,v:5},rl:5,rh:7,rc:1,rules:[
 R('san_ext','Sanitaires externat','sanitary_ext',null,'rate',1,1,[2,'d']),
 R('san_int','Sanitaires internat','sanitary_int',null,'rate',1,1,[1,'d']),
 R('off_hi','Bureau très fréquenté','office',{traffic:'high'},'rate',3,1,[1,'d']),
@@ -252,6 +253,8 @@ function sanitize(o){
  if(!o.p||typeof o.p!='object')o.p=DEF();
  const p=o.p;p.setup=num(p.setup,10);p.days=Math.min(7,Math.max(1,Math.round(num(p.days,5,7))||5));
  p.cls={c:num(p.cls&&p.cls.c,25),d:num(p.cls&&p.cls.d,15),v:num(p.cls&&p.cls.v,5)};
+ p.rl=Math.max(1,Math.round(num(p.rl,5,50)));p.rh=Math.max(p.rl,Math.round(num(p.rh,7,100)));p.rc=Math.max(1,Math.round(num(p.rc,1,10)));
+ if(!['auto','light','dark'].includes(o.th))o.th='auto';
  p.rules=(Array.isArray(p.rules)?p.rules:[]).filter(r=>r&&str(r.id)&&str(r.label)&&CATK.includes(r.cat)&&['rate','unit'].includes(r.k)).map(r=>({id:str(r.id,20),label:str(r.label,80),cat:r.cat,when:r.when&&typeof r.when=='object'&&!Array.isArray(r.when)&&Object.values(r.when).every(v=>typeof v=='string')?r.when:null,k:r.k,a:num(r.a,0),b:num(r.b,5)>0?num(r.b,5):5,f:Array.isArray(r.f)&&isFinite(r.f[0])&&r.f[0]>0?[+r.f[0],r.f[1]=='w'?'w':'d']:[1,'d']}));
  if(!p.rules.length)p.rules=DEF().rules;
  if(!Array.isArray(o.m))o.m=DEFM();
@@ -273,7 +276,8 @@ function save(){
 function undo(){if(!undoStack.length)return;S=JSON.parse(undoStack.pop());sanitize(S);norm();sup=true;save();sup=false;edit=null;render()}
 function backup(){try{const d=new Date().toDateString(),b=JSON.parse(localStorage.getItem(K2)||'null');if(!b||b.day!=d)localStorage.setItem(K2,JSON.stringify({day:d,d:S}))}catch(e){}}
 function updSv(err){const el=$('#sv');if(!el)return;el.hidden=false;el.textContent=err?'⚠ Sauvegarde locale impossible':'Enregistré '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});el.className='badge '+(err?'er':'ok')}
-function head(){$('#lk').textContent=fh?'Synchronisé avec : '+fh.name:'Gestion des surfaces, rotations et dotations';$('#blink').hidden=!window.showSaveFilePicker}
+function applyTheme(){const mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;const dark=S.th=='dark'||(S.th!='light'&&!!(mq&&mq.matches));if(document.documentElement)document.documentElement.classList.toggle('dark',dark)}
+function head(){$('#lk').textContent=fh?'Synchronisé avec : '+fh.name:'Gestion des surfaces, rotations et dotations';$('#blink').hidden=!window.showSaveFilePicker;const bt=$('#btheme');if(bt)bt.textContent='Thème : '+(S.th=='auto'?'auto':S.th=='dark'?'sombre':'clair');applyTheme()}
 
 // ── Moteur de calcul ──
 const roomById=id=>S.r.find(x=>x.id==id),secOf=id=>S.s.find(s=>s.it.some(a=>a.room==id));
@@ -291,9 +295,9 @@ function sday(s,dy){
   for(const r of use){const f=r.f[1]=='w'&&a.fw[r.id]>0?[a.fw[r.id],'w']:r.f;
    L.push({l:m.name+' ('+r.label+')',m:ruleMin(r,m)*dayF(f,p.days),t:2})}}
  const n=cl.length;
- if(n){const rest=n-1,d=Math.min(rest,Math.max(2,Math.min(3,rest>>1))),sh=dy%n;
-  if(n<5||n>7)W.push('Lot de '+n+' classes : la règle prévoit 5 à 7 classes');
-  cl.forEach((_,i)=>{const m=cl[(i+sh)%n],t=i<1?'c':i<1+d?'d':'v';
+ if(n){const rc=Math.min(p.rc||1,n),rest=n-rc,d=Math.min(rest,Math.max(2,Math.min(3,rest>>1))),sh=dy%n;
+  if(n<(p.rl||5)||n>(p.rh||7))W.push('Lot de '+n+' classes : la règle prévoit '+(p.rl||5)+' à '+(p.rh||7)+' classes');
+  cl.forEach((_,i)=>{const m=cl[(i+sh)%n],t=i<rc?'c':i<rc+d?'d':'v';
    L.push({l:m.name+' ('+{c:'complète',d:'dépoussiérage',v:'vérification'}[t]+')',m:p.cls[t],t:1})})}
  return{L,W,tot:L.reduce((x,y)=>x+y.m,0)}}
 
@@ -305,7 +309,7 @@ function nav(){
  const counts={'Locaux':S.r.length,'Secteurs':S.s.length,'Matériel':S.m.length};
  $('#nav').innerHTML=S.tabs.map((t,i)=>`<button draggable="true" data-ti="${i}" data-act="tab" class="${t==tab?'on':''}">${esc(t)}${counts[t]!=null?` <span class="cnt">${counts[t]}</span>`:''}</button>`).join('')
 }
-function render(){nav();$('#v').innerHTML=(imp?impView():'')+(tab=='Semaine'?vWeek():tab=='Tableau'?vTable():tab=='Dashboard'?vDash():tab=='Locaux'?vLoc():tab=='Secteurs'?vSec():tab=='Matériel'?vMat():vPar());head()}
+function render(){nav();const sy=window.scrollY,sx=window.scrollX;$('#v').innerHTML=(imp?impView():'')+(tab=='Semaine'?vWeek():tab=='Tableau'?vTable():tab=='Dashboard'?vDash():tab=='Locaux'?vLoc():tab=='Secteurs'?vSec():tab=='Matériel'?vMat():vPar());if(typeof window.scrollTo=='function')window.scrollTo(sx,sy);head()}
 const sel=(n,o,v)=>`<select name="${n}">${o.map(([k,l])=>`<option value="${k}" ${k==v?'selected':''}>${l}</option>`).join('')}</select>`;
 const extra=(c,m)=>c=='office'?sel('traffic',[['high','Très fréquenté'],['low','Faiblement fréquenté']],m&&m.traffic):c=='canteen'?sel('floor',[['tile','Carrelage / sol souple'],['flotex','Flotex']],m&&m.floor):c=='bedroom'?`<input name="beds" type="number" min="1" step="1" value="${m&&m.beds||1}" aria-label="Nombre de lits"> <span class="mu">lit(s)</span>`:c=='showers'?`<input name="cells" type="number" min="1" step="1" value="${m&&m.cells||1}" aria-label="Cellules"> <span class="mu">cellule(s)</span>`:c=='classroom'?`<input name="tables" type="number" min="0" step="1" value="${m&&m.tables!=null?m.tables:10}" aria-label="Nombre de tables"> <span class="mu">table(s)</span>`:(c=='sanitary_ext'||c=='sanitary_int')?`<input name="cuvettes" type="number" min="0" step="1" value="${m&&m.cuvettes!=null?m.cuvettes:5}" aria-label="Nombre de cuvettes"> <span class="mu">cuvette(s)</span>`:'';
 const detail=m=>m.category=='office'?(m.traffic=='high'?'Très fréquenté':'Faiblement fréquenté'):m.category=='canteen'?(m.floor=='flotex'?'Flotex':'Carrelage / sol souple'):m.category=='bedroom'?m.beds+' lit(s)':m.category=='showers'?m.cells+' cellule(s)':m.category=='classroom'?(m.tables!=null?m.tables:10)+' tables':m.category.startsWith('sanitary')?(m.cuvettes!=null?m.cuvettes:5)+' cuvette(s)':'—';
@@ -438,6 +442,13 @@ function vDash(){
   </section>
  </div>
 
+ ${(()=>{const iss=[];
+  secStats.forEach(({s,d})=>{d.W.forEach(w=>iss.push({t:'Secteurs',x:w}));if(d.tot>s.avail)iss.push({t:'Secteurs',x:'Secteur « '+s.name+' » en surcharge (+'+Math.round(d.tot-s.avail)+' min)'})});
+  const unN=S.r.filter(r=>!secOf(r.id)).length;if(unN)iss.push({t:'Secteurs',x:unN+' pièce(s) non affectée(s) à un secteur'});
+  S.s.forEach(s=>{if(!s.it.length)iss.push({t:'Secteurs',x:'Secteur « '+s.name+' » vide'})});
+  const seen=new Set();S.r.forEach(r=>{const k=(r.bid||'')+'|'+r.name.toLowerCase();if(seen.has(k))iss.push({t:'Locaux',x:'Nom de pièce en doublon : « '+r.name+' »'});seen.add(k)});
+  return iss.length?`<section class="card" style="margin-top:1.15rem"><h2 style="justify-content:space-between">Contrôles qualité <span class="badge wa">${iss.length} point(s) à vérifier</span></h2>
+   ${iss.map(i=>`<div class="row" style="justify-content:space-between;margin:.3rem 0"><span class="wa">⚠ ${esc(i.x)}</span><button class="ghost" data-act="tab" data-tab="${i.t}">Voir →</button></div>`).join('')}</section>`:''})()}
  <section class="card" style="margin-top:1.15rem">
   <h2 style="justify-content:space-between">Dotation globale en matériel <button class="ghost" data-act="tab" data-tab="Matériel">Détail par secteur →</button></h2>
   ${S.s.length?`<div class="row" style="gap:.75rem">${matTotals.map(m=>`<div class="badge" style="padding:.45rem .8rem;font-size:.85rem;background:var(--sf2)"><span>${esc(m.label)}</span> <strong style="color:var(--ac);font-size:.95rem;margin-left:.3rem">${m.tot}</strong></div>`).join('')}</div>`:'<p class="mu">Affecte des pièces aux secteurs pour calculer le matériel global.</p>'}
@@ -554,6 +565,7 @@ function vPar(){
  return `<section class="card"><h2>Paramètres généraux</h2>
   <div class="row" style="gap:1.2rem"><label>Prise de poste ${N(p.setup,'data-c="pset"')} <span class="mu">min</span></label><label>Jours ouvrés / sem ${N(p.days,'data-c="pdays"')}</label></div>
   <div class="row" style="gap:1.2rem;margin-top:.4rem"><label>Classe complète ${N(p.cls.c,'data-c="pcls" data-x="c"')} <span class="mu">min</span></label><label>Dépoussiérage ${N(p.cls.d,'data-c="pcls" data-x="d"')} <span class="mu">min</span></label><label>Vérification ${N(p.cls.v,'data-c="pcls" data-x="v"')} <span class="mu">min</span></label></div>
+  <div class="row" style="gap:1.2rem;margin-top:.4rem"><label>Rotation : lots de ${N(p.rl,'data-c="prot" data-x="rl"')} à ${N(p.rh,'data-c="prot" data-x="rh"')} <span class="mu">classes</span></label><label>Classes nettoyées complètement / jour ${N(p.rc,'data-c="prot" data-x="rc"')}</label></div>
   <h2 style="margin-top:1.4rem">Cadences par type de local</h2>
   <div class="tw"><table><thead><tr><th>Règle</th><th>Cadence de calcul</th><th>Fréquence</th></tr></thead><tbody>${p.rules.map((r,i)=>`<tr><td><strong>${r.label}</strong></td><td>${r.k=='rate'?N(r.a,`data-c="pr" data-i="${i}" data-x="a"`)+' <span class="mu">m² en</span> '+N(r.b,`data-c="pr" data-i="${i}" data-x="b"`)+' <span class="mu">min</span>':N(r.b,`data-c="pr" data-i="${i}" data-x="b"`)+' <span class="mu">min par '+(r.cat=='bedroom'?'lit':'cellule')+'</span>'}</td><td>${N(r.f[0],`data-c="pf" data-i="${i}"`)} <select data-c="pfu" data-i="${i}"><option value="d" ${r.f[1]=='d'?'selected':''}>par jour</option><option value="w" ${r.f[1]=='w'?'selected':''}>par semaine</option></select></td></tr>`).join('')}</tbody></table></div>
   <div class="row" style="justify-content:space-between;margin-top:1rem"><span class="mu">Une fréquence hebdomadaire est ramenée au quotidien (÷ jours ouvrés).</span><button class="danger" data-act="reset">Rétablir les paramètres par défaut</button></div>
@@ -709,6 +721,7 @@ function printDoc(){
 // ── Actions & Événements ──
 const acts={
  tab:d=>{tab=d.ti!=null?S.tabs[+d.ti]:d.tab;edit=null;render()},
+ theme:()=>{S.th=S.th=='auto'?'light':S.th=='dark'?'auto':'dark';save();head()},
  undo:()=>undo(),
  goday:d=>{day=+d.d;tab='Secteurs';render()},
  print:()=>{$('#pr').innerHTML=printDoc();document.body.classList.add('printing');window.print()},
@@ -753,11 +766,13 @@ const acts={
   S.s.push({id:uid(),name:'Matin 1',avail:495,it:[]});save();render()}};
 
 document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(t)acts[t.dataset.act](t.dataset)});
+let qDeb=null;
 document.addEventListener('input',e=>{
  const id=e.target.id;
- if(id=='qloc'){qLoc=e.target.value;const pos=e.target.selectionStart;render();const el=$('#qloc');if(el){el.focus();el.setSelectionRange(pos,pos)}}
- else if(id=='qsec'){qSec=e.target.value;const pos=e.target.selectionStart;render();const el=$('#qsec');if(el){el.focus();el.setSelectionRange(pos,pos)}}
- else if(id=='qtab'){qTab=e.target.value;const pos=e.target.selectionStart;render();const el=$('#qtab');if(el){el.focus();el.setSelectionRange(pos,pos)}}
+ if(id!='qloc'&&id!='qsec'&&id!='qtab')return;
+ if(id=='qloc')qLoc=e.target.value;else if(id=='qsec')qSec=e.target.value;else qTab=e.target.value;
+ const pos=e.target.selectionStart;clearTimeout(qDeb);
+ qDeb=setTimeout(()=>{render();const el=$('#'+id);if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(x){}}},150);
 });
 
 function moveMany(ids,sid){
@@ -801,6 +816,7 @@ document.addEventListener('change',e=>{
  else if(c=='pset'){if(n>=0)p.setup=n}
  else if(c=='pdays'){if(n>=1&&n<=7)p.days=Math.round(n)}
  else if(c=='pcls'){if(n>=0)p.cls[t.dataset.x]=n}
+ else if(c=='prot'){const x=t.dataset.x,v=Math.round(+t.value);if(x=='rl'){if(v>=1)p.rl=v;if(p.rh<p.rl)p.rh=p.rl}else if(x=='rh'){if(v>=p.rl)p.rh=v}else if(x=='rc'){if(v>=1)p.rc=v}}
  else if(c=='pr'){if(n>0)p.rules[t.dataset.i][t.dataset.x]=n}
  else if(c=='pf'){if(n>0)p.rules[t.dataset.i].f[0]=n}
  else if(c=='pfu'){p.rules[t.dataset.i].f[1]=t.value}
@@ -834,6 +850,7 @@ $('#csvfile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)retu
  rd.readAsText(f,'UTF-8');e.target.value=''});
 
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()=='z'&&!e.target.closest('input,textarea,select')){e.preventDefault();undo()}});
+if(window.matchMedia)window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(S.th=='auto')applyTheme()});
 window.addEventListener('afterprint',()=>{document.body.classList.remove('printing');$('#pr').innerHTML=''});
 
 render();
