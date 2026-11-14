@@ -191,7 +191,7 @@ body.printing>#pr{display:block;padding:1rem;max-width:900px;margin:0 auto}
 <script>
 const K='sectorisation_v1',K2=K+'_bk',CATS={classroom:'Salle de classe',office:'Bureau',sanitary_ext:'Sanitaires externat',sanitary_int:'Sanitaires internat',bedroom:'Chambre',showers:'Douches',canteen:'Self',library:'CDI',gym:'Gymnase',stairs:'Escalier',circulation:'Circulation / Autre'};
 const R=(id,label,cat,when,k,a,b,f)=>({id,label,cat,when,k,a,b,f});
-const DEF=()=>({setup:10,days:5,cls:{c:25,d:15,v:5},rl:5,rh:7,rc:1,rules:[
+const DEF=()=>({setup:10,days:5,cls:{c:25,d:15,v:5},rl:6,rh:7,rc:1,rules:[
 R('san_ext','Sanitaires externat','sanitary_ext',null,'rate',1,1,[2,'d']),
 R('san_int','Sanitaires internat','sanitary_int',null,'rate',1,1,[1,'d']),
 R('off_hi','Bureau très fréquenté','office',{traffic:'high'},'rate',3,1,[1,'d']),
@@ -217,11 +217,12 @@ const DEFM=()=>[
 {id:'hou',label:'Housse Micro flex',rules:[{k:'sector',n:2}]},
 {id:'fv',label:'Frange vitre microfibre',rules:[{k:'sector',n:3}]},
 {id:'gv',label:'Gant vitre microfibre',rules:[{k:'sector',n:1}]}];
-const fresh=()=>({tabs:['Dashboard','Locaux','Secteurs','Semaine','Tableau','Matériel','Paramètres'],b:[],r:[],s:[],p:DEF(),m:DEFM()});
+const fresh=()=>({tabs:['Dashboard','Locaux','Sous-secteurs','Secteurs','Semaine','Tableau','Matériel','Paramètres'],b:[],r:[],s:[],p:DEF(),m:DEFM()});
 function norm(){
  if(!S.m)S.m=DEFM();
  if(!S.tabs.includes('Dashboard'))S.tabs.unshift('Dashboard');
  if(!S.tabs.includes('Matériel'))S.tabs.splice(3,0,'Matériel');
+ if(!S.tabs.includes('Sous-secteurs')){const i=S.tabs.indexOf('Locaux');S.tabs.splice(i>=0?i+1:1,0,'Sous-secteurs')}
  if(!S.tabs.includes('Semaine')){const i=S.tabs.indexOf('Secteurs');S.tabs.splice(i>=0?i+1:2,0,'Semaine')}
  if(!S.tabs.includes('Tableau')){const i=S.tabs.indexOf('Semaine');if(i>=0)S.tabs.splice(i+1,0,'Tableau');else{const j=S.tabs.indexOf('Paramètres');S.tabs.splice(j>=0?j:S.tabs.length,0,'Tableau')}}
  if(!S.p.rules.some(r=>r.id=='circ'))S.p.rules.push(R('circ','Circulation / Autre','circulation',null,'rate',400,60,[1,'d']));
@@ -238,8 +239,8 @@ function sanitize(o){
  if(!Array.isArray(o.tabs))o.tabs=['Dashboard','Locaux','Secteurs','Semaine','Matériel','Paramètres'];
  o.tabs=o.tabs.filter(t=>typeof t=='string'&&t.trim()).map(t=>t.trim().slice(0,40));
  if(!o.tabs.length)o.tabs=['Dashboard','Locaux','Secteurs','Semaine','Matériel','Paramètres'];
- o.b=(Array.isArray(o.b)?o.b:[]).filter(x=>x&&str(x.name)).map(x=>({id:String(x.id||uid()).slice(0,12),name:str(x.name,80),code:String(x.code||'').trim().slice(0,10)}));
- o.r=(Array.isArray(o.r)?o.r:[]).filter(x=>x&&str(x.name)&&x.bid&&o.b.some(b=>b.id==x.bid)&&num(x.area)>0).map(x=>{const m={id:String(x.id||uid()).slice(0,12),bid:String(x.bid),name:str(x.name,80),area:num(x.area),category:CATK.includes(x.category)?x.category:'circulation'};
+ o.b=(Array.isArray(o.b)?o.b:[]).filter(x=>x&&str(x.name)).map(x=>({id:String(x.id||uid()).slice(0,12),name:str(x.name,80),niveau:str(x.niveau,20)||'RDC',code:String(x.code||'').trim().slice(0,10),sub:CATK.includes(x.sub)?x.sub:null,sid:x.sid?String(x.sid):null}));
+ o.r=(Array.isArray(o.r)?o.r:[]).filter(x=>x&&str(x.name)&&x.bid&&o.b.some(b=>b.id==x.bid)&&num(x.area)>0).map(x=>{const m={id:String(x.id||uid()).slice(0,12),bid:String(x.bid),name:str(x.name,80),area:num(x.area),category:CATK.includes(x.category)?x.category:'circulation',niveau:str(x.niveau,20)||'RDC'};
   if(m.category=='office')m.traffic=x.traffic=='low'?'low':'high';
   if(m.category=='canteen')m.floor=x.floor=='flotex'?'flotex':'tile';
   if(m.category=='bedroom')m.beds=Math.max(1,Math.round(num(x.beds,1)));
@@ -250,10 +251,11 @@ function sanitize(o){
  const rids=new Set(o.r.map(x=>x.id));
  o.s=(Array.isArray(o.s)?o.s:[]).filter(x=>x&&str(x.name)).map(x=>{const fw={};if(x.fw&&typeof x.fw=='object')Object.entries(x.fw).forEach(([k,v])=>{if(typeof k=='string'&&isFinite(v)&&v>0)fw[k.slice(0,20)]=+v});
   return {id:String(x.id||uid()).slice(0,12),name:str(x.name,80),avail:num(x.avail,495)>0?num(x.avail,495):495,it:(Array.isArray(x.it)?x.it:[]).filter(a=>a&&a.room&&rids.has(String(a.room))).map(a=>({room:String(a.room),rules:(Array.isArray(a.rules)?a.rules:[]).filter(v=>typeof v=='string').slice(0,20),fw}))}});
+ o.b.forEach(b=>{if(b.sid&&!o.s.some(s=>s.id==b.sid))b.sid=null});
  if(!o.p||typeof o.p!='object')o.p=DEF();
  const p=o.p;p.setup=num(p.setup,10);p.days=Math.min(7,Math.max(1,Math.round(num(p.days,5,7))||5));
  p.cls={c:num(p.cls&&p.cls.c,25),d:num(p.cls&&p.cls.d,15),v:num(p.cls&&p.cls.v,5)};
- p.rl=Math.max(1,Math.round(num(p.rl,5,50)));p.rh=Math.max(p.rl,Math.round(num(p.rh,7,100)));p.rc=Math.max(1,Math.round(num(p.rc,1,10)));
+ p.rl=Math.max(1,Math.round(num(p.rl,6,50)));p.rh=Math.max(p.rl,Math.round(num(p.rh,7,100)));p.rc=Math.max(1,Math.round(num(p.rc,1,10)));
  if(!['auto','light','dark'].includes(o.th))o.th='auto';
  p.rules=(Array.isArray(p.rules)?p.rules:[]).filter(r=>r&&str(r.id)&&str(r.label)&&CATK.includes(r.cat)&&['rate','unit'].includes(r.k)).map(r=>({id:str(r.id,20),label:str(r.label,80),cat:r.cat,when:r.when&&typeof r.when=='object'&&!Array.isArray(r.when)&&Object.values(r.when).every(v=>typeof v=='string')?r.when:null,k:r.k,a:num(r.a,0),b:num(r.b,5)>0?num(r.b,5):5,f:Array.isArray(r.f)&&isFinite(r.f[0])&&r.f[0]>0?[+r.f[0],r.f[1]=='w'?'w':'d']:[1,'d']}));
  if(!p.rules.length)p.rules=DEF().rules;
@@ -309,10 +311,23 @@ function nav(){
  const counts={'Locaux':S.r.length,'Secteurs':S.s.length,'Matériel':S.m.length};
  $('#nav').innerHTML=S.tabs.map((t,i)=>`<button draggable="true" data-ti="${i}" data-act="tab" class="${t==tab?'on':''}">${esc(t)}${counts[t]!=null?` <span class="cnt">${counts[t]}</span>`:''}</button>`).join('')
 }
-function render(){nav();const sy=window.scrollY,sx=window.scrollX;$('#v').innerHTML=(imp?impView():'')+(tab=='Semaine'?vWeek():tab=='Tableau'?vTable():tab=='Dashboard'?vDash():tab=='Locaux'?vLoc():tab=='Secteurs'?vSec():tab=='Matériel'?vMat():vPar());if(typeof window.scrollTo=='function')window.scrollTo(sx,sy);head()}
+function render(){nav();const sy=window.scrollY,sx=window.scrollX;$('#v').innerHTML=(imp?impView():'')+(tab=='Semaine'?vWeek():tab=='Tableau'?vTable():tab=='Sous-secteurs'?vSub():tab=='Dashboard'?vDash():tab=='Locaux'?vLoc():tab=='Secteurs'?vSec():tab=='Matériel'?vMat():vPar());if(typeof window.scrollTo=='function')window.scrollTo(sx,sy);head()}
 const sel=(n,o,v)=>`<select name="${n}">${o.map(([k,l])=>`<option value="${k}" ${k==v?'selected':''}>${l}</option>`).join('')}</select>`;
 const extra=(c,m)=>c=='office'?sel('traffic',[['high','Très fréquenté'],['low','Faiblement fréquenté']],m&&m.traffic):c=='canteen'?sel('floor',[['tile','Carrelage / sol souple'],['flotex','Flotex']],m&&m.floor):c=='bedroom'?`<input name="beds" type="number" min="1" step="1" value="${m&&m.beds||1}" aria-label="Nombre de lits"> <span class="mu">lit(s)</span>`:c=='showers'?`<input name="cells" type="number" min="1" step="1" value="${m&&m.cells||1}" aria-label="Cellules"> <span class="mu">cellule(s)</span>`:c=='classroom'?`<input name="tables" type="number" min="0" step="1" value="${m&&m.tables!=null?m.tables:10}" aria-label="Nombre de tables"> <span class="mu">table(s)</span>`:(c=='sanitary_ext'||c=='sanitary_int')?`<input name="cuvettes" type="number" min="0" step="1" value="${m&&m.cuvettes!=null?m.cuvettes:5}" aria-label="Nombre de cuvettes"> <span class="mu">cuvette(s)</span>`:'';
 const detail=m=>m.category=='office'?(m.traffic=='high'?'Très fréquenté':'Faiblement fréquenté'):m.category=='canteen'?(m.floor=='flotex'?'Flotex':'Carrelage / sol souple'):m.category=='bedroom'?m.beds+' lit(s)':m.category=='showers'?m.cells+' cellule(s)':m.category=='classroom'?(m.tables!=null?m.tables:10)+' tables':m.category.startsWith('sanitary')?(m.cuvettes!=null?m.cuvettes:5)+' cuvette(s)':'—';
+
+// ── Vue Sous-secteurs (tri des pièces par mode de calcul) ──
+function vSub(){
+ const gs=Object.entries(CATS).map(([k,lbl])=>({k,lbl,rs:S.r.filter(r=>r.category==k)})).filter(g=>g.rs.length);
+ return `<div class="toolbar" style="margin-top:0;margin-bottom:1.15rem"><div class="row" style="margin:0"><strong style="font-size:.95rem">Sous-secteurs</strong><span class="mu">Trie les pièces par mode de calcul. Affecte-les ensuite aux secteurs — un secteur peut mélanger plusieurs sous-secteurs.</span></div></div>
+ ${gs.map(g=>{const aff=g.rs.filter(r=>secOf(r.id)).length,surf=Math.round(g.rs.reduce((a,r)=>a+r.area,0));
+  return `<section class="card" style="margin-top:1rem">
+   <div class="row" style="justify-content:space-between"><div class="row" style="margin:0"><h2 style="margin:0">${esc(g.lbl)}</h2><span class="badge ac">${g.rs.length} pièce(s) · ${surf} m²</span><span class="badge ${aff==g.rs.length?'ok':'wa'}">${aff}/${g.rs.length} affectée(s)</span></div></div>
+   <div class="tw" style="margin-top:.6rem"><table><thead><tr><th>Bâtiment</th><th>Niveau</th><th>Pièce</th><th style="text-align:right">Surface</th><th>Secteur</th></tr></thead><tbody>
+   ${g.rs.map(r=>{const b=S.b.find(x=>x.id==r.bid),s=secOf(r.id);
+    return `<tr><td class="mu">${esc(b?b.name:'?')}</td><td class="mu">${esc(r.niveau||'—')}</td><td><strong>${esc(r.name)}</strong></td><td style="text-align:right">${r.area} m²</td><td><select class="mv" data-c="tsec" data-r="${r.id}" aria-label="Secteur de ${esc(r.name)}"><option value="">Non affecté</option>${S.s.map(x=>`<option value="${x.id}" ${s&&s.id==x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></td></tr>`}).join('')}
+   </tbody></table></div></section>`}).join('')||'<div class="card"><p class="mu" style="margin:0">Aucune pièce enregistrée. Crée des locaux dans l’onglet Locaux.</p></div>'}`
+}
 
 // ── Vue Semaine ──
 function vWeek(){
@@ -435,8 +450,8 @@ function vDash(){
   </section>
 
   <section class="card">
-   <h2 style="justify-content:space-between">Répartition des surfaces par catégorie <button class="ghost" data-act="tab" data-tab="Locaux">Locaux →</button></h2>
-   ${byCat.length?`<div class="tw"><table><thead><tr><th>Catégorie</th><th>Pièces</th><th>Affectées</th><th style="text-align:right">Surface</th></tr></thead><tbody>
+   <h2 style="justify-content:space-between">Répartition des surfaces par sous-secteur <button class="ghost" data-act="tab" data-tab="Locaux">Locaux →</button></h2>
+   ${byCat.length?`<div class="tw"><table><thead><tr><th>Sous-secteur</th><th>Pièces</th><th>Affectées</th><th style="text-align:right">Surface</th></tr></thead><tbody>
     ${byCat.map(c=>`<tr><td><strong>${esc(c.lbl)}</strong></td><td>${c.count}</td><td><span class="badge ${c.aff==c.count?'ok':''}">${c.aff}/${c.count}</span></td><td style="text-align:right">${Math.round(c.surf*10)/10} m²</td></tr>`).join('')}
    </tbody></table></div>`:'<p class="mu">Aucune pièce enregistrée.</p>'}
   </section>
@@ -462,11 +477,12 @@ function vLoc(){
  const totSurf=Math.round(S.r.reduce((a,b)=>a+b.area,0)*10)/10;
  return `<div class="g2">
   <section class="card"><h2>${eb?'Modifier le bâtiment':'Nouveau bâtiment'}</h2>
-   <form data-f="b"><div class="row"><input name="name" placeholder="Nom du bâtiment (ex. Bâtiment A)" style="flex:1" value="${eb?esc(eb.name):''}" required><input name="code" placeholder="0123456A" maxlength="8" style="width:7.5rem" value="${eb?esc(eb.code):''}" required></div>
+   <form data-f="b"><div class="row"><input name="name" placeholder="Nom du bâtiment (ex. Bâtiment A)" style="flex:1" value="${eb?esc(eb.name):''}" required><input name="niveau" placeholder="Niveau (ex. RDC)" style="width:9rem" value="${eb?esc(eb.niveau||'RDC'):''}" required><input name="code" placeholder="0123456A (facultatif)" maxlength="8" style="width:9.5rem" value="${eb?esc(eb.code):''}"></div>
+   <div class="row"><select name="sub" aria-label="Sous-secteur principal"><option value="">Sous-secteur principal (facultatif)</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${eb&&eb.sub==k?'selected':''}>${v}</option>`).join('')}</select><select name="sid" aria-label="Secteur principal"><option value="">Secteur principal (facultatif)</option>${S.s.map(s=>`<option value="${s.id}" ${eb&&eb.sid==s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
    <div class="row"><button class="p">${eb?'Enregistrer':'Ajouter le bâtiment'}</button>${eb?'<button type="button" data-act="cancel">Annuler</button>':''}<span id="eb" class="er"></span></div>
-   <span class="mu">Code UAI établissement : 7 chiffres et 1 lettre.</span></form></section>
-  <section class="card"><h2>${ro?'Modifier la pièce':'Nouvelle pièce'}</h2>${S.b.length?`<form data-f="r"><div class="row"><select name="bid">${bo}</select><input name="name" placeholder="Nom ou numéro" style="flex:1" value="${ro?esc(ro.name):''}" required><input name="area" type="number" min="0.1" step="0.1" placeholder="m²" value="${ro?ro.area:''}" required></div>
-   <div class="row"><select name="category">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${ro&&ro.category==k?'selected':''}>${v}</option>`).join('')}</select><span id="ex" class="row" style="margin:0">${extra(ro?ro.category:'classroom',ro)}</span></div>
+   <span class="mu">Code UAI établissement : 7 chiffres et 1 lettre, facultatif.</span></form></section>
+  <section class="card"><h2>${ro?'Modifier la pièce':'Nouvelle pièce'}</h2>${S.b.length?`<form data-f="r"><div class="row"><select name="bid">${bo}</select><input name="name" placeholder="Nom ou numéro" style="flex:1" value="${ro?esc(ro.name):''}" required><input name="niveau" placeholder="Niveau (ex. RDC)" style="width:8.5rem" value="${ro?esc(ro.niveau||'RDC'):''}" required><input name="area" type="number" min="0.1" step="0.1" placeholder="m²" value="${ro?ro.area:''}" required></div>
+   <div class="row"><label class="mu" style="display:inline-flex;align-items:center;gap:.35rem">Sous-secteur <select name="category">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${ro&&ro.category==k?'selected':''}>${v}</option>`).join('')}</select></label><span id="ex" class="row" style="margin:0">${extra(ro?ro.category:'classroom',ro)}</span></div>
    <div class="row"><button class="p">${ro?'Enregistrer':'Ajouter la pièce'}</button>${ro?'<button type="button" data-act="cancel">Annuler</button>':''}<span id="er" class="er"></span></div></form>`:'<p class="mu">Ajoute d’abord un bâtiment pour y créer des pièces.</p>'}</section>
  </div>
  <div class="toolbar">
@@ -478,7 +494,7 @@ function vLoc(){
   </div>
   ${S.r.length?`<div class="row" style="margin:0">
    <div class="search-box">${icoSearch}<input id="qloc" placeholder="Rechercher une pièce…" value="${esc(qLoc)}"></div>
-   <select id="catloc"><option value="">Toutes catégories</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${catLoc==k?'selected':''}>${v}</option>`).join('')}</select>
+   <select id="catloc"><option value="">Tous sous-secteurs</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${catLoc==k?'selected':''}>${v}</option>`).join('')}</select>
   </div>`:''}
  </div>
  ${S.b.map(b=>{
@@ -487,10 +503,10 @@ function vLoc(){
   const bSurf=Math.round(allRs.reduce((x,y)=>x+y.area,0)*10)/10;
   return `<section class="card" style="margin-top:1rem">
    <div class="row" style="justify-content:space-between">
-    <div class="row" style="margin:0"><h2 style="margin:0">${esc(b.name)}</h2><span class="badge">${esc(b.code)}</span><span class="badge ac">${allRs.length} pièce(s) · ${bSurf} m²</span></div>
+    <div class="row" style="margin:0"><h2 style="margin:0">${esc(b.name)}</h2>${b.niveau?`<span class="badge">${esc(b.niveau)}</span>`:''}${b.code?`<span class="badge">${esc(b.code)}</span>`:''}${b.sub?`<span class="badge">${CATS[b.sub]}</span>`:''}${b.sid?`<span class="badge ac">→ ${esc((S.s.find(x=>x.id==b.sid)||{name:''}).name)}</span>`:''}<span class="badge ac">${allRs.length} pièce(s) · ${bSurf} m²</span></div>
     <div><button class="ghost" data-act="edb" data-id="${b.id}">Modifier</button><button class="ghost danger" data-act="delb" data-id="${b.id}">Supprimer</button></div>
    </div>
-   ${rs.length?`<div class="tw" style="margin-top:.75rem"><table><thead><tr><th>Pièce</th><th>Catégorie</th><th>Surface</th><th>Détail</th><th style="text-align:right">Actions</th></tr></thead><tbody>${rs.map(r=>`<tr><td><strong>${esc(r.name)}</strong></td><td><span class="badge">${CATS[r.category]||r.category}</span></td><td>${r.area} m²</td><td class="mu">${detail(r)}</td><td style="text-align:right;white-space:nowrap"><button class="ghost" data-act="edr" data-id="${r.id}">Modifier</button><button class="ghost danger" data-act="delr" data-id="${r.id}" aria-label="Supprimer ${esc(r.name)}">×</button></td></tr>`).join('')}</tbody></table></div>`:`<p class="mu" style="margin:.6rem 0 0">${allRs.length?'Aucune pièce ne correspond au filtre.':'Aucune pièce enregistrée dans ce bâtiment.'}</p>`}
+   ${rs.length?`<div class="tw" style="margin-top:.75rem"><table><thead><tr><th>Pièce</th><th>Sous-secteur</th><th>Niveau</th><th>Surface</th><th>Détail</th><th style="text-align:right">Actions</th></tr></thead><tbody>${rs.map(r=>`<tr><td><strong>${esc(r.name)}</strong></td><td><span class="badge">${CATS[r.category]||r.category}</span></td><td class="mu">${esc(r.niveau||'—')}</td><td>${r.area} m²</td><td class="mu">${detail(r)}</td><td style="text-align:right;white-space:nowrap"><button class="ghost" data-act="edr" data-id="${r.id}">Modifier</button><button class="ghost danger" data-act="delr" data-id="${r.id}" aria-label="Supprimer ${esc(r.name)}">×</button></td></tr>`).join('')}</tbody></table></div>`:`<p class="mu" style="margin:.6rem 0 0">${allRs.length?'Aucune pièce ne correspond au filtre.':'Aucune pièce enregistrée dans ce bâtiment.'}</p>`}
   </section>`}).join('')}`
 }
 
@@ -627,7 +643,7 @@ function mapCat(raw){
  if(s.includes('escalier'))return 'stairs';
  return 'circulation'}
 
-const IMPCOLS=[['bat','Bâtiment',['batiment']],['code','Code étab.',['code']],['piece','Pièce',['piece','local','nom']],['surf','Surface (m²)',['surface','m2']],['cat','Catégorie',['categorie']],['freq','Fréquentation',['frequentation']],['sol','Sol',['sol']],['lits','Lits',['lit']],['cells','Cellules',['cellule']],['tab','Tables',['table']],['cuv','Cuvettes',['cuvette']]];
+const IMPCOLS=[['bat','Bâtiment',['batiment']],['code','Code étab.',['code']],['niv','Niveau',['niveau','etage']],['piece','Pièce',['piece','local','nom']],['surf','Surface (m²)',['surface','m2']],['cat','Sous-secteur',['categorie','soussecteur']],['freq','Fréquentation',['frequentation']],['sol','Sol',['sol']],['lits','Lits',['lit']],['cells','Cellules',['cellule']],['tab','Tables',['table']],['cuv','Cuvettes',['cuvette']]];
 function openImp(txt){
  const rows=parseCSV(txt);
  if(rows.length<2){alert('Le fichier CSV semble vide ou ne contient que des en-têtes.');return}
@@ -641,7 +657,7 @@ function impRow(r){
  const g=x=>imp.map[x]>=0?(r[imp.map[x]]||'').trim():'';
  const area=parseFloat(g('surf').replace(/\s/g,'').replace(',','.'));
  const cat=mapCat(g('cat'));
- return{bName:g('bat'),rName:g('piece'),area,cat,err:!g('bat')?'bâtiment manquant':!g('piece')?'pièce manquante':!(area>0)?'surface invalide ou manquante':null}
+ return{bName:g('bat'),rName:g('piece'),niv:g('niv')||'RDC',area,cat,err:!g('bat')?'bâtiment manquant':!g('piece')?'pièce manquante':!(area>0)?'surface invalide ou manquante':null}
 }
 function impView(){
  const i=imp;
@@ -652,7 +668,7 @@ function impView(){
  const missing=['bat','piece','surf'].filter(k=>i.map[k]<0).map(k=>IMPCOLS.find(c=>c[0]==k)[1]);
  const SE=k=>`<select data-c="imap" data-f="${k}" aria-label="Colonne pour ${k}"><option value="-1" ${i.map[k]<0?'selected':''}>—</option>${i.rows[0].map((h,hi)=>`<option value="${hi}" ${i.map[k]==hi?'selected':''}>${esc(h)||'Colonne '+(hi+1)}</option>`).join('')}</select>`;
  const prev=i.rows.slice(1,9).map((r,ri)=>{const d=impRow(r);
-  return `<tr><td>${ri+2}</td><td>${esc(d.bName)||'<span class="er">—</span>'}</td><td>${esc(d.rName)||'<span class="er">—</span>'}</td><td>${d.area>0?d.area:'<span class="er">?</span>'}</td><td><span class="badge">${CATS[d.cat]}</span></td><td class="${d.err?'er':'ok'}">${d.err||'✓'}</td></tr>`}).join('');
+  return `<tr><td>${ri+2}</td><td>${esc(d.bName)||'<span class="er">—</span>'}</td><td class="mu">${esc(d.niv)}</td><td>${esc(d.rName)||'<span class="er">—</span>'}</td><td>${d.area>0?d.area:'<span class="er">?</span>'}</td><td><span class="badge">${CATS[d.cat]}</span></td><td class="${d.err?'er':'ok'}">${d.err||'✓'}</td></tr>`}).join('');
  return `<div class="ovl"><section class="card">
   <h2>Aperçu de l'import CSV</h2>
   <p class="mu" style="margin:0 0 .8rem">${i.rows.length-1} ligne(s) de données détectée(s). Vérifiez la correspondance des colonnes, puis lancez l'import.</p>
@@ -660,7 +676,7 @@ function impView(){
   <h2 style="margin-top:.9rem">Correspondance des colonnes</h2>
   <div class="row">${IMPCOLS.map(([k,l])=>`<label class="mu" style="display:inline-flex;flex-direction:column;gap:.15rem;font-size:.75rem">${l}${SE(k)}</label>`).join('')}</div>
   <h2 style="margin-top:.9rem">Aperçu des premières lignes</h2>
-  <div class="tw"><table><thead><tr><th>Ligne</th><th>Bâtiment</th><th>Pièce</th><th>Surface</th><th>Catégorie détectée</th><th>Statut</th></tr></thead><tbody>${prev}</tbody></table></div>
+  <div class="tw"><table><thead><tr><th>Ligne</th><th>Bâtiment</th><th>Niveau</th><th>Pièce</th><th>Surface</th><th>Sous-secteur détecté</th><th>Statut</th></tr></thead><tbody>${prev}</tbody></table></div>
   ${issues.length?`<details ${issues.length<8?'open':''}><summary>${issues.length} ligne(s) seront ignorée(s)</summary><div class="mu" style="margin-top:.4rem">${issues.slice(0,10).map(esc).join('<br>')}${issues.length>10?`<br>… et ${issues.length-10} autre(s)`:''}</div></details>`:'<p class="ok" style="margin:.6rem 0 0">Aucune ligne rejetée.</p>'}
   <div class="row" style="margin-top:1rem">
    <span class="mu">Mode :</span>
@@ -683,8 +699,9 @@ function applyImport(){
   let code=g(r,'code').toUpperCase();
   if(!/^\d{7}[A-Z]$/.test(code))code='0000000A';
   let bat=newB.find(b=>b.name.toLowerCase()==d.bName.toLowerCase());
-  if(!bat){bat={id:uid(),name:d.bName,code};newB.push(bat);addedB++}
-  const room={id:uid(),bid:bat.id,name:d.rName,area:d.area,category:d.cat};
+  if(!bat){bat={id:uid(),name:d.bName,niveau:d.niv,code};newB.push(bat);addedB++}
+  else if(!bat.niveau)bat.niveau=d.niv;
+  const room={id:uid(),bid:bat.id,name:d.rName,area:d.area,category:d.cat,niveau:g(r,'niv')||'RDC'};
   if(d.cat=='office'){const f=cleanH(g(r,'freq'));room.traffic=f.includes('faible')?'low':'high'}
   if(d.cat=='canteen'){const fl=cleanH(g(r,'sol'));room.floor=fl.includes('flotex')?'flotex':'tile'}
   if(d.cat=='bedroom'){const v=parseInt(g(r,'lits'),10);room.beds=v>0?v:1}
@@ -756,11 +773,11 @@ const acts={
  exp:()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='secteurs.json';a.click()},
  imp:()=>$('#file').click(),
  impcsv:()=>$('#csvfile').click(),
- tplcsv:()=>{const bom='\uFEFF',csv='Bâtiment;Code établissement;Pièce;Surface (m²);Catégorie;Fréquentation;Sol;Lits;Cellules;Tables;Cuvettes\n"A1, INTER, EX";0290341N;Salle 101;45,89;Salle de classe;;;;;22;\n"A1, INTER, EX";0290341N;Sanitaires Garçons;20;Sanitaire externat;;;;;;4\n"A1, INTER, EX";0290341N;Bureau infos;14,19;Bureau;Très fréquenté;;;;;\n';
+ tplcsv:()=>{const bom='\uFEFF',csv='Bâtiment;Code établissement;Niveau;Pièce;Surface (m²);Sous-secteur;Fréquentation;Sol;Lits;Cellules;Tables;Cuvettes\n"A1, INTER, EX";0290341N;RDC;Salle 101;45,89;Salle de classe;;;;;22;\n"A1, INTER, EX";0290341N;RDC;Sanitaires Garçons;20;Sanitaire externat;;;;;;4\n"A1, INTER, EX";0290341N;1er;Bureau infos;14,19;Bureau;Très fréquenté;;;;;\n';
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bom+csv],{type:'text/csv;charset=utf-8'}));a.download='modele_locaux.csv';a.click()},
  link:async()=>{try{fh=await showSaveFilePicker({suggestedName:'secteurs.json',types:[{accept:{'application/json':['.json']}}]});await write();head()}catch(e){}},
- demo:()=>{const b=uid();S.b.push({id:b,name:'Bâtiment A',code:'0123456A'});
-  const add=(name,area,category,x)=>S.r.push({id:uid(),bid:b,name,area,category,...x});
+ demo:()=>{const b=uid();S.b.push({id:b,name:'Bâtiment A',niveau:'RDC',code:'0123456A',sub:null,sid:null});
+  const add=(name,area,category,x)=>S.r.push({id:uid(),bid:b,name,area,category,niveau:'RDC',...x});
   for(let i=1;i<=7;i++)add('Classe A'+i,50,'classroom',{tables:10});
   add('WC garçons',20,'sanitary_ext',{cuvettes:5});add('WC filles',15,'sanitary_ext',{cuvettes:5});add('Secrétariat',24,'office',{traffic:'high'});add('Chambre 101',12,'bedroom',{beds:3});add('Self',400,'canteen',{floor:'tile'});add('Gymnase',4600,'gym');
   S.s.push({id:uid(),name:'Matin 1',avail:495,it:[]});save();render()}};
@@ -830,14 +847,15 @@ document.addEventListener('submit',e=>{
  const f=e.target.dataset.f;if(!f)return;e.preventDefault();const d=Object.fromEntries(new FormData(e.target));
  if(f=='m'){S.m.push({id:uid(),label:d.label.trim(),rules:[{k:'sector',n:1}]});save();render();return}
  if(f=='b'){const code=d.code.trim().toUpperCase();
-  if(!/^\d{7}[A-Z]$/.test(code)){$('#eb').textContent='Code attendu : 7 chiffres et 1 lettre (ex. 0123456A).';return}
+  if(code&&!/^\d{7}[A-Z]$/.test(code)){$('#eb').textContent='Code attendu : 7 chiffres et 1 lettre (ex. 0123456A), ou laisse le vide.';return}
   const o=edit&&edit.t=='b'?S.b.find(x=>x.id==edit.id):null;
-  if(o){o.name=d.name.trim();o.code=code}else S.b.push({id:uid(),name:d.name.trim(),code})}
+  const sub=d.sub||null,sid=d.sid||null,niv=(d.niveau||'RDC').trim().slice(0,20)||'RDC';
+  if(o){o.name=d.name.trim();o.niveau=niv;o.code=code;o.sub=sub;o.sid=sid}else S.b.push({id:uid(),name:d.name.trim(),niveau:niv,code,sub,sid})}
  else{const name=d.name.trim(),area=+d.area;
   if(!(area>0)){$('#er').textContent='La surface doit être supérieure à 0.';return}
   const o=edit&&edit.t=='r'?roomById(edit.id):null;
   if(S.r.some(r=>r!==o&&r.bid==d.bid&&r.name.toLowerCase()==name.toLowerCase())){$('#er').textContent='Ce nom existe déjà dans ce bâtiment.';return}
-  const m={id:o?o.id:uid(),bid:d.bid,name,area,category:d.category};
+  const m={id:o?o.id:uid(),bid:d.bid,name,area,category:d.category,niveau:(d.niveau||'RDC').trim().slice(0,20)||'RDC'};
   if(d.traffic)m.traffic=d.traffic;if(d.floor)m.floor=d.floor;if(d.beds)m.beds=Math.max(1,Math.round(+d.beds));if(d.cells)m.cells=Math.max(1,Math.round(+d.cells));if(d.tables!=null&&d.tables!=='')m.tables=Math.max(0,Math.round(+d.tables));if(d.cuvettes!=null&&d.cuvettes!=='')m.cuvettes=Math.max(0,Math.round(+d.cuvettes));
   if(o){if(o.category!=m.category||o.floor!=m.floor||o.traffic!=m.traffic)S.s.forEach(s=>s.it.forEach(a=>{if(a.room==o.id){a.rules=[];a.fw={}}}));S.r[S.r.indexOf(o)]=m}else S.r.push(m)}
  edit=null;save();render()});
