@@ -267,7 +267,7 @@ let S;try{S=JSON.parse(localStorage.getItem(K));if(!ok(S))S=fresh()}catch(e){S=f
 sanitize(S);norm();
 {const D=DEF().rules;S.p.rules.forEach(r=>{const d=D.find(x=>x.id==r.id);if(d)r.label=d.label})}
 let tab=S.tabs[0],day=0,fh=null,drag=null,edit=null,qLoc='',catLoc='',qSec='',collapsed=new Set();
-let undoStack=[],lastSnap=JSON.stringify(S),sup=false,imp=null,selR=new Set(),qTab='',catTab='';backup();
+let undoStack=[],lastSnap=JSON.stringify(S),sup=false,imp=null,selR=new Set(),qTab='',catTab='',collapsedSub=new Set();backup();
 
 async function write(){if(!fh)return;try{const w=await fh.createWritable();await w.write(JSON.stringify(S,null,1));await w.close()}catch(e){fh=null;$('#lk').textContent='Synchronisation fichier interrompue — pensez à exporter vos données'}}
 function save(){
@@ -511,14 +511,31 @@ function vLoc(){
 }
 
 // ── Vue Secteurs (cartes dépliables / repliables) ──
+function itemHTML(a,s){
+ const m=roomById(a.room);if(!m)return '';const c=S.p.rules.filter(r=>match(r,m));
+ const ch=c.length>1?c.map(r=>`<label class="mu" style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.25rem"><input type="checkbox" data-c="rchk" data-s="${s.id}" data-r="${m.id}" data-x="${r.id}" ${a.rules.includes(r.id)?'checked':''}> ${r.label.replace(/^(Self|Gymnase), /,'')}</label>${r.f[1]=='w'&&a.rules.includes(r.id)?` <input type="number" step="0.5" min="0.5" data-c="rfw" data-s="${s.id}" data-r="${m.id}" data-x="${r.id}" value="${a.fw[r.id]||r.f[0]}" style="width:4.2rem;padding:.2rem .4rem"> <span class="mu">×/sem</span>`:''}`).join('<br>'):'';
+ return `<div class="it" draggable="true" data-drag="${m.id}"><div><strong>${esc(m.name)}</strong> <span class="mu">· ${m.area} m²</span></div><button class="ghost danger" data-act="rm" data-id="${m.id}" aria-label="Retirer ${esc(m.name)}">×</button><select class="mv" data-c="mvfrom" data-r="${m.id}" aria-label="Déplacer vers un autre secteur"><option value="${s.id}">Secteur actuel</option>${S.s.filter(x=>x.id!=s.id).map(x=>`<option value="${x.id}">→ ${esc(x.name)}</option>`).join('')}<option value="">Non affecté</option></select>${ch?`<div style="width:100%">${ch}</div>`:''}</div>`}
+function subGroups(list,sid){
+ const gmap={};list.forEach(a=>{const m=roomById(a.room);if(!m)return;(gmap[m.category]=gmap[m.category]||[]).push(a)});
+ return Object.keys(CATS).filter(c=>gmap[c]).map(c=>{
+  const key=sid+'|'+c,isCol=collapsedSub.has(key);
+  const surf=gmap[c].reduce((x,a)=>{const m=roomById(a.room);return x+(m?m.area:0)},0);
+  return {c,lbl:CATS[c],key,isCol,list:gmap[c],surf}})}
+function subGroupHTML(g,zone,rowFn){
+ return `<div style="margin:.4rem 0">
+  <div class="row" style="margin:0;justify-content:space-between;background:var(--sf2);border:1px solid var(--bd);border-radius:var(--rs);padding:.3rem .5rem">
+   <button class="ghost chev" data-act="togglesub" data-id="${zone}" data-g="${g.c}" aria-expanded="${!g.isCol}" title="${g.isCol?'Déplier':'Replier'} ${esc(g.lbl)}">${icoChev}</button>
+   <strong style="flex:1">${esc(g.lbl)}</strong>
+   <span class="badge">${g.list.length} pièce(s) · ${Math.round(g.surf)} m²</span>
+  </div>
+  ${g.isCol?'':`<div style="padding-left:.4rem">${g.list.map(rowFn).join('')}</div>`}
+ </div>`}
 function card(s){
  const isCol=collapsed.has(s.id);
  const d=sday(s,day),over=d.tot>s.avail,warn=!over&&d.tot>=.9*s.avail,sc=Math.max(d.tot,s.avail);
  const cls=over?'er':warn?'wa':'ok';
  const stBadge=over?`<span class="badge er">+${Math.round(d.tot-s.avail)} min</span>`:warn?`<span class="badge wa">Reste ${Math.round(s.avail-d.tot)} min</span>`:`<span class="badge ok">Reste ${Math.round(s.avail-d.tot)} min</span>`;
- const items=s.it.map(a=>{const m=roomById(a.room);if(!m)return '';const c=S.p.rules.filter(r=>match(r,m));
-  const ch=c.length>1?c.map(r=>`<label class="mu" style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.25rem"><input type="checkbox" data-c="rchk" data-s="${s.id}" data-r="${m.id}" data-x="${r.id}" ${a.rules.includes(r.id)?'checked':''}> ${r.label.replace(/^(Self|Gymnase), /,'')}</label>${r.f[1]=='w'&&a.rules.includes(r.id)?` <input type="number" step="0.5" min="0.5" data-c="rfw" data-s="${s.id}" data-r="${m.id}" data-x="${r.id}" value="${a.fw[r.id]||r.f[0]}" style="width:4.2rem;padding:.2rem .4rem"> <span class="mu">×/sem</span>`:''}`).join('<br>'):'';
-  return `<div class="it" draggable="true" data-drag="${m.id}"><div><strong>${esc(m.name)}</strong> <span class="mu">· ${CATS[m.category]||m.category} (${m.area} m²)</span></div><button class="ghost danger" data-act="rm" data-id="${m.id}" aria-label="Retirer ${esc(m.name)}">×</button><select class="mv" data-c="mvfrom" data-r="${m.id}" aria-label="Déplacer vers un autre secteur"><option value="${s.id}">Secteur actuel</option>${S.s.filter(x=>x.id!=s.id).map(x=>`<option value="${x.id}">→ ${esc(x.name)}</option>`).join('')}<option value="">Non affecté</option></select>${ch?`<div style="width:100%">${ch}</div>`:''}</div>`}).join('');
+ const items=subGroups(s.it,s.id).map(g=>subGroupHTML(g,s.id,a=>itemHTML(a,s))).join('');
 
  return `<section class="card sec-card ${isCol?'collapsed':''}" data-zone="${s.id}">
   <div class="row" style="margin-bottom:${isCol?'0':'.5rem'}">
@@ -569,7 +586,10 @@ function vSec(){
   <section class="card sticky-col">
    <h2 style="justify-content:space-between">Non affectées <span class="badge ac">${unAll.length}</span></h2>
    ${unAll.length?`<div class="search-box" style="width:100%;margin-bottom:.4rem">${icoSearch}<input id="qsec" placeholder="Filtrer les pièces…" style="width:100%" value="${esc(qSec)}"></div><div id="selbar">${selBarHTML()}</div>`:''}
-   <div class="zone scroll-zone ${un.length?'':'empty'}" data-zone="">${un.map(m=>`<div class="chip" draggable="true" data-drag="${m.id}"><input type="checkbox" data-c="selr" data-r="${m.id}" ${selR.has(m.id)?'checked':''} aria-label="Sélectionner ${esc(m.name)}" style="margin:0;flex-shrink:0"><div><strong>${esc(m.name)}</strong><div class="mu">${CATS[m.category]||m.category}</div></div><span class="badge">${m.area} m²</span><select class="mv" data-c="mvto" data-r="${m.id}" aria-label="Affecter à un secteur"><option value="">→ secteur…</option>${S.s.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>`).join('')||`<span class="mu">${unAll.length?'Aucun résultat.':'Toutes les pièces sont affectées.'}</span>`}</div>
+   <div class="zone scroll-zone ${un.length?'':'empty'}" data-zone="">${(()=>{const unA=un.map(m=>({room:m.id}));
+    const gs=subGroups(unA,'un');
+    const chip=m=>`<div class="chip" draggable="true" data-drag="${m.id}"><input type="checkbox" data-c="selr" data-r="${m.id}" ${selR.has(m.id)?'checked':''} aria-label="Sélectionner ${esc(m.name)}" style="margin:0;flex-shrink:0"><div><strong>${esc(m.name)}</strong><div class="mu">${m.niveau||''}</div></div><span class="badge">${m.area} m²</span><select class="mv" data-c="mvto" data-r="${m.id}" aria-label="Affecter à un secteur"><option value="">→ secteur…</option>${S.s.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>`;
+    return un.length?gs.map(g=>subGroupHTML(g,'un',a=>chip(a.room))).join(''):`<span class="mu">${unAll.length?'Aucun résultat.':'Toutes les pièces sont affectées.'}</span>`})()}</div>
   </section>
   <div class="secs">${S.s.map(card).join('')||'<div class="card"><p class="mu" style="margin:0">Clique sur <strong>+ Nouveau secteur</strong> pour créer une tournée d’agent, puis glisse-y des pièces.</p></div>'}</div>
  </div>`
@@ -755,6 +775,7 @@ const acts={
  impclose:()=>{imp=null;tab='Locaux';render()},
  restbk:()=>{try{const b=JSON.parse(localStorage.getItem(K2)||'null');if(!b||!b.d)return;if(!confirm('Restaurer la sauvegarde du '+new Date(b.day).toLocaleDateString('fr-FR')+' ? Les données actuelles seront remplacées (Ctrl+Z pour annuler).'))return;S=JSON.parse(JSON.stringify(b.d));sanitize(S);norm();tab=S.tabs[0];save();render()}catch(e){}},
  toggle:d=>{if(collapsed.has(d.id))collapsed.delete(d.id);else collapsed.add(d.id);render()},
+ togglesub:d=>{const k=d.id+'|'+d.g;if(collapsedSub.has(k))collapsedSub.delete(k);else collapsedSub.add(k);render()},
  colall:()=>{S.s.forEach(s=>collapsed.add(s.id));render()},
  expall:()=>{collapsed.clear();render()},
  edb:d=>{edit={t:'b',id:d.id};render();scrollTo({top:0,behavior:'smooth'})},
