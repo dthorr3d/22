@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laser Studio — Alternative gratuite à LightBurn</title>
+<style>
+  :root{
+    --bg:#16181d; --panel:#1f232b; --panel2:#262b35; --border:#3a4150;
+    --txt:#dfe4ec; --muted:#8b93a3; --accent:#ff6a2b; --accent2:#2b8cff;
+    --ok:#3ddc84; --warn:#ffb02b; --err:#ff5252;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden;}
+  body{font:13px/1.45 "Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--txt);
+       display:grid; grid-template-rows:42px 1fr; user-select:none;}
+  /* ── Top bar ─────────────────────────────── */
+  #topbar{display:flex; align-items:center; gap:6px; padding:0 10px; background:var(--panel);
+          border-bottom:1px solid var(--border);}
+  #topbar .logo{font-weight:700; letter-spacing:.5px; color:var(--accent); margin-right:8px;}
+  .tbtn{background:var(--panel2); border:1px solid var(--border); color:var(--txt); border-radius:6px;
+        padding:5px 10px; cursor:pointer; font-size:12px;}
+  .tbtn:hover{border-color:var(--accent);}
+  .tbtn.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .tbtn:disabled{opacity:.4; cursor:default;}
+  .sep{width:1px; height:22px; background:var(--border); margin:0 4px;}
+  #machineStatus{margin-left:auto; font-family:Consolas,monospace; font-size:12px; color:var(--muted);}
+  #machineStatus b{color:var(--txt);}
+  /* ── Main layout ─────────────────────────── */
+  #main{display:grid; grid-template-columns:230px 1fr 250px; min-height:0;}
+  .panel{background:var(--panel); border-right:1px solid var(--border); overflow-y:auto; padding:10px;}
+  .panel.right{border-right:none; border-left:1px solid var(--border);}
+  h3{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin:14px 0 6px;}
+  h3:first-child{margin-top:0;}
+  /* ── Layers ──────────────────────────────── */
+  .layer{background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+         padding:8px; margin-bottom:8px; cursor:pointer;}
+  .layer.sel{border-color:var(--accent);}
+  .layer .row{display:flex; align-items:center; gap:6px; margin-bottom:4px;}
+  .layer input[type=color]{width:26px; height:20px; border:none; background:none; cursor:pointer;}
+  .layer .name{flex:1; font-weight:600; background:transparent; border:none; color:var(--txt); width:70px;}
+  .layer .fields{display:grid; grid-template-columns:1fr 1fr; gap:4px;}
+  .layer label{font-size:10px; color:var(--muted); display:block;}
+  .mini{width:100%; background:var(--bg); border:1px solid var(--border); color:var(--txt);
+        border-radius:4px; padding:3px 5px; font-size:11px;}
+  .mode{font-size:10px; padding:2px 6px; border-radius:10px; border:1px solid var(--border); cursor:pointer;}
+  .mode.cut{background:#3a1512; color:#ff8a70;}
+  .mode.engrave{background:#12233a; color:#7db6ff;}
+  /* ── Canvas ──────────────────────────────── */
+  #canvasWrap{position:relative; min-width:0; background:#101216;}
+  #cv{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair;}
+  #zoomHud{position:absolute; left:10px; bottom:10px; background:rgba(0,0,0,.55); padding:4px 10px;
+           border-radius:6px; font-family:Consolas,monospace; font-size:11px; pointer-events:none;}
+  #dropHint{position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+            background:rgba(43,140,255,.15); border:3px dashed var(--accent2); font-size:16px; color:#fff;}
+  /* ── Properties / machine ────────────────── */
+  .fld{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:6px;}
+  .fld label{color:var(--muted); font-size:12px;}
+  .fld input, .fld select{width:110px; background:var(--bg); border:1px solid var(--border);
+        color:var(--txt); border-radius:5px; padding:4px 6px; font-size:12px;}
+  #jog{display:grid; grid-template-columns:repeat(3,44px); gap:4px; justify-content:center; margin:8px 0;}
+  #jog .tbtn{padding:8px 0; text-align:center; font-size:14px;}
+  #console{background:#0c0e11; border:1px solid var(--border); border-radius:6px; height:150px;
+           overflow-y:auto; font-family:Consolas,monospace; font-size:11px; padding:6px; margin-top:8px;}
+  #console div{white-space:pre-wrap; word-break:break-all;}
+  #console .ok{color:var(--muted);} #console .err{color:var(--err);} #console .sent{color:var(--accent2);}
+  .warnbox{background:#3a2c10; border:1px solid #6b5416; color:#ffd98a; border-radius:6px;
+           padding:6px 8px; font-size:11px; margin-top:8px;}
+  dialog{background:var(--panel); color:var(--txt); border:1px solid var(--border); border-radius:10px;
+         padding:18px; max-width:520px;}
+  dialog::backdrop{background:rgba(0,0,0,.6);}
+  dialog h2{margin-bottom:10px; color:var(--accent);}
+  dialog p{margin-bottom:8px; color:var(--muted);}
+  dialog code{color:var(--accent2);}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <span class="logo">⚡ LASER STUDIO</span>
+  <button class="tbtn" id="btnNew">Nouveau</button>
+  <button class="tbtn" id="btnSave">Enregistrer</button>
+  <label class="tbtn" style="display:inline-block">Importer SVG<input type="file" id="fileSvg" accept=".svg" hidden></label>
+  <span class="sep"></span>
+  <button class="tbtn" id="btnUndo" title="Ctrl+Z">↶ Annuler</button>
+  <button class="tbtn" id="btnDelete" title="Suppr">🗑 Supprimer</button>
+  <span class="sep"></span>
+  <button class="tbtn" id="btnFrame">🔦 Cadrage (frame)</button>
+  <button class="tbtn" id="btnGenGcode">Générer G-code</button>
+  <span id="machineStatus">Machine : <b>non connectée</b></span>
+</div>
+
+<div id="main">
+  <!-- Left : layers -->
+  <div class="panel">
+    <h3>Calques</h3>
+    <div id="layers"></div>
+    <button class="tbtn" id="btnAddLayer" style="width:100%">+ Ajouter un calque</button>
+
+    <h3>Zone de travail</h3>
+    <div class="fld"><label>Largeur (mm)</label><input type="number" id="bedW" value="400" min="10"></div>
+    <div class="fld"><label>Hauteur (mm)</label><input type="number" id="bedH" value="400" min="10"></div>
+
+    <h3>Aide</h3>
+    <p style="color:var(--muted); font-size:11px">
+      Molette : zoom · Clic milieu / Espace+glisser : déplacer<br>
+      Sélectionnez une forme puis modifiez-la à droite.<br>
+      Le texte est aperçu seulement (pas de G-code).
+    </p>
+  </div>
+
+  <!-- Center : canvas -->
+  <div id="canvasWrap">
+    <canvas id="cv"></canvas>
+    <div id="zoomHud">100 %</div>
+    <div id="dropHint">Déposez votre SVG ici</div>
+  </div>
+
+  <!-- Right : properties + machine -->
+  <div class="panel right">
+    <h3>Propriétés</h3>
+    <div id="props"><p style="color:var(--muted)">Aucune sélection</p></div>
+
+    <h3>Machine (GRBL)</h3>
+    <button class="tbtn" id="btnConnect" style="width:100%">🔌 Connecter (USB / Web Serial)</button>
+    <div class="fld" style="margin-top:8px"><label>Puissance max $30</label>
+      <input type="number" id="sMax" value="1000" min="1"></div>
+    <div class="fld"><label>Dépl. jog (mm)</label>
+      <input type="number" id="jogDist" value="10" min="0.1" step="any"></div>
+    <div id="jog">
+      <span></span><button class="tbtn" data-jog="0,1">▲</button><span></span>
+      <button class="tbtn" data-jog="-1,0">◀</button>
+      <button class="tbtn" data-jog="0,0" title="Home (G0 X0 Y0)">⌂</button>
+      <button class="tbtn" data-jog="1,0">▶</button>
+      <span></span><button class="tbtn" data-jog="0,-1">▼</button><span></span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px">
+      <button class="tbtn" id="btnHome">$H</button>
+      <button class="tbtn" id="btnRun">▶ Usinage</button>
+      <button class="tbtn" id="btnStop" style="color:var(--err)">■ Stop</button>
+    </div>
+    <div id="console"></div>
+    <div class="warnbox">
+      ⚠️ Portez vos lunettes de protection. Testez toujours le cadrage et les premières passes
+      à faible puissance. Le logiciel est fourni sans garantie.
+    </div>
+  </div>
+</div>
+
+<dialog id="helpDlg">
+  <h2>Laser Studio</h2>
+  <p>Logiciel libre de pilotage de laser GRBL, alternative gratuite à LightBurn.</p>
+  <p><b>Connexion :</b> Chrome ou Edge requis (API Web Serial). Branchez la machine, cliquez
+     <code>Connecter</code>, choisissez le port série.</p>
+  <p><b>G-code :</b> mode laser <code>M4</code> (puissance dynamique), <code>G21 G90</code>,
+     puissance <code>S</code> calculée d'après <code>$30</code>. Origin en bas-gauche.</p>
+  <p><b>Sans machine :</b> utilisez <code>Générer G-code</code> pour exporter un fichier .nc
+     utilisable avec n'importe quel envoi GRBL (Candle, UGS, Pronterface…).</p>
+  <p style="text-align:right"><button class="tbtn" onclick="helpDlg.close()">Fermer</button></p>
+</dialog>
+
+<script>
+"use strict";
+/* ═══════════════════════ ÉTAT ═══════════════════════ */
+let doc = {
+  bedW: 400, bedH: 400,
+  layers: [
+    { id: 1, name: "Coupe",   color: "#ff5252", mode: "cut",     speed: 1000, power: 100, passes: 1 },
+    { id: 2, name: "Gravure", color: "#4d9fff", mode: "engrave", speed: 3000, power: 60,  passes: 1 },
+  ],
+  shapes: [],
+  nextLayerId: 3,
+};
+let selShape = null, selLayer = null, tool = "select";
+let undoStack = [];
+let view = { x: 40, y: 40, scale: 2 };   // px per mm, offset
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const $ = id => document.getElementById(id);
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* ═══════════════════════ UNDO ═══════════════════════ */
+function snapshot() {
+  undoStack.push(JSON.stringify({ layers: doc.layers, shapes: doc.shapes, nextLayerId: doc.nextLayerId }));
+  if (undoStack.length > 50) undoStack.shift();
+}
+function undo() {
+  const s = undoStack.pop();
+  if (!s) return;
+  const o = JSON.parse(s);
+  doc.layers = o.layers; doc.shapes = o.shapes; doc.nextLayerId = o.nextLayerId;
+  selShape = null; renderLayers(); renderProps(); draw();
+}
+
+/* ═══════════════════════ FORMES ═══════════════════════ */
+function addShape(s) {
+  snapshot();
+  s.id = uid(); s.layer = selLayer ? selLayer.id : doc.layers[0].id;
+  doc.shapes.push(s); selShape = s; renderProps(); draw();
+}
+function shapeBBox(s) {
+  if (s.type === "rect") return { x: s.x, y: s.y, w: s.w, h: s.h };
+  if (s.type === "ellipse") return { x: s.cx - s.rx, y: s.cy - s.ry, w: s.rx * 2, h: s.ry * 2 };
+  if (s.type === "line" || s.type === "poly") {
+    const xs = s.pts.map(p => p[0]), ys = s.pts.map(p => p[1]);
+    const x = Math.min(...xs), y = Math.min(...ys);
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+  }
+  if (s.type === "text") {
+    ctx.font = `${s.size}px sans-serif`;
+    const m = ctx.measureText(s.text);
+    return { x: s.x, y: s.y - s.size, w: m.width, h: s.size * 1.2 };
+  }
+  return { x: 0, y: 0, w: 0, h: 0 };
+}
+function hitTest(wx, wy) {
+  for (let i = doc.shapes.length - 1; i >= 0; i--) {
+    const s = doc.shapes[i], b = shapeBBox(s), pad = 2 / view.scale;
+    if (s.type === "line") {
+      for (let j = 0; j < s.pts.length - 1; j++) {
+        if (distToSeg(wx, wy, s.pts[j], s.pts[j + 1]) < 4 / view.scale) return s;
+      }
+      continue;
+    }
+    if (wx >= b.x - pad && wx <= b.x + b.w + pad && wy >= b.y - pad && wy <= b.y + b.h + pad) return s;
+  }
+  return null;
+}
+function distToSeg(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+  let t = l2 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+/* ═══════════════════════ CANVAS ═══════════════════════ */
+function resize() {
+  const r = cv.parentElement.getBoundingClientRect();
+  cv.width = r.width * devicePixelRatio; cv.height = r.height * devicePixelRatio;
+  draw();
+}
+window.addEventListener("resize", resize);
+function w2s(x, y) { return [x * view.scale + view.x, y * view.scale + view.y]; }
+function s2w(px, py) { return [(px - view.x) / view.scale, (py - view.y) / view.scale]; }
+
+function draw() {
+  const W = cv.width, H = cv.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  // bed
+  const [bx, by] = w2s(0, 0), bw = doc.bedW * view.scale, bh = doc.bedH * view.scale;
+  ctx.fillStyle = "#1a1e25"; ctx.fillRect(bx, by, bw, bh);
+  // grid 10mm
+  ctx.strokeStyle = "#232830"; ctx.lineWidth = 1; ctx.beginPath();
+  for (let x = 0; x <= doc.bedW; x += 10) { const [sx, sy] = w2s(x, 0); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy + bh); }
+  for (let y = 0; y <= doc.bedH; y += 10) { const [sx, sy] = w2s(0, y); ctx.moveTo(sx, sy); ctx.lineTo(sx + bw, sy); }
+  ctx.stroke();
+  // bed border + origin
+  ctx.strokeStyle = "#3a4150"; ctx.strokeRect(bx, by, bw, bh);
+  ctx.strokeStyle = "#ff5252"; ctx.beginPath();
+  ctx.moveTo(bx - 8, by + bh); ctx.lineTo(bx + 8, by + bh);
+  ctx.moveTo(bx, by + bh - 8); ctx.lineTo(bx, by + bh + 8); ctx.stroke();
+  // shapes
+  for (const s of doc.shapes) {
+    const layer = doc.layers.find(l => l.id === s.layer) || doc.layers[0];
+    ctx.strokeStyle = layer.color; ctx.lineWidth = (selShape === s ? 2 : 1.2) * (1 / Math.sqrt(view.scale));
+    ctx.setLineDash(s.type === "line" ? [] : []);
+    ctx.beginPath();
+    if (s.type === "rect") ctx.rect(...w2s(s.x, s.y), s.w * view.scale, s.h * view.scale);
+    else if (s.type === "ellipse") ctx.ellipse(...w2s(s.cx, s.cy), s.rx * view.scale, s.ry * view.scale, 0, 0, 7);
+    else if (s.type === "line" || s.type === "poly") {
+      s.pts.forEach((p, i) => { const [px, py] = w2s(p[0], p[1]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+      if (s.type === "poly" && s.closed) ctx.closePath();
+    } else if (s.type === "text") {
+      ctx.font = `${s.size * view.scale}px sans-serif`;
+      const [px, py] = w2s(s.x, s.y);
+      ctx.fillStyle = layer.color; ctx.fillText(s.text, px, py);
+      ctx.fillStyle = layer.color;
+    }
+    if (s.type !== "text") ctx.stroke();
+    if (selShape === s) {
+      const b = shapeBBox(s), [hx, hy] = w2s(b.x, b.y);
+      ctx.setLineDash([4, 4]); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1;
+      ctx.strokeRect(hx - 3, hy - 3, b.w * view.scale + 6, b.h * view.scale + 6);
+      ctx.setLineDash([]);
+    }
+  }
+  $("zoomHud").textContent = Math.round(view.scale / 2 * 100) + " %";
+}
+
+/* interactions canvas */
+let mouse = null, panning = false, dragging = false, dragStart = null;
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const f = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  view.x = mx - (mx - view.x) * f; view.y = my - (my - view.y) * f;
+  view.scale = Math.min(40, Math.max(0.2, view.scale * f)); draw();
+}, { passive: false });
+cv.addEventListener("mousedown", e => {
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  if (e.button === 1 || spaceDown) { panning = true; mouse = [px, py]; return; }
+  if (e.button !== 0) return;
+  const [wx, wy] = s2w(px, py);
+  if (tool === "select") {
+    const s = hitTest(wx, wy);
+    selShape = s; renderProps(); draw();
+    if (s) { dragging = true; dragStart = [wx, wy]; snapshot(); }
+  } else if (tool === "rect") {
+    addShape({ type: "rect", x: wx, y: wy, w: 20, h: 20 }); setTool("select");
+  } else if (tool === "ellipse") {
+    addShape({ type: "ellipse", cx: wx, cy: wy, rx: 10, ry: 10 }); setTool("select");
+  } else if (tool === "line") {
+    addShape({ type: "line", pts: [[wx, wy], [wx + 30, wy + 30]] }); setTool("select");
+  } else if (tool === "text") {
+    const t = prompt("Texte :");
+    if (t) addShape({ type: "text", x: wx, y: wy, text: t, size: 10 });
+    setTool("select");
+  }
+});
+window.addEventListener("mousemove", e => {
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  if (panning) { view.x += px - mouse[0]; view.y += py - mouse[1]; mouse = [px, py]; draw(); return; }
+  if (dragging && selShape) {
+    const [wx, wy] = s2w(px, py);
+    const dx = wx - dragStart[0], dy = wy - dragStart[1];
+    const s = selShape, b = shapeBBox(s), o = doc.shapes.find(x => x.id === s.id);
+    if (o._orig === undefined) o._orig = JSON.stringify(s);
+    if (s.type === "rect") { s.x = b.x + dx; s.y = b.y + dy; }
+    else if (s.type === "ellipse") { s.cx = b.x + dx + b.w / 2; s.cy = b.y + dy + b.h / 2; }
+    else if (s.type === "line" || s.type === "poly") {
+      const orig = JSON.parse(o._orig);
+      s.pts = orig.pts.map(p => [p[0] + dx, p[1] + dy]);
+    } else if (s.type === "text") { s.x = b.x + dx; s.y = b.y + dy + s.size; }
+    draw();
+  }
+});
+window.addEventListener("mouseup", () => {
+  if (dragging && selShape) { delete selShape._orig; renderProps(); }
+  dragging = false; panning = false;
+});
+let spaceDown = false;
+window.addEventListener("keydown", e => {
+  if (e.code === "Space" && e.target === document.body) { spaceDown = true; e.preventDefault(); }
+  if (e.key === "Delete" && selShape) { snapshot(); doc.shapes = doc.shapes.filter(s => s !== selShape); selShape = null; renderProps(); draw(); }
+  if (e.ctrlKey && e.key === "z") { undo(); }
+});
+window.addEventListener("keyup", e => { if (e.code === "Space") spaceDown = false; });
+
+/* ═══════════════════════ OUTILS ═══════════════════════ */
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll("#topbar [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === t));
+  cv.style.cursor = t === "select" ? "default" : "crosshair";
+}
+document.querySelectorAll("#topbar [data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
+
+/* ═══════════════════════ CALQUES ═══════════════════════ */
+function renderLayers() {
+  const c = $("layers"); c.innerHTML = "";
+  doc.layers.forEach(l => {
+    const d = document.createElement("div");
+    d.className = "layer" + (selLayer === l ? " sel" : "");
+    d.innerHTML = `
+      <div class="row">
+        <input type="color" value="${l.color}" title="Couleur">
+        <input class="name" value="${l.name.replace(/"/g, "&quot;")}">
+        <span class="mode ${l.mode}">${l.mode === "cut" ? "coupe" : "gravure"}</span>
+      </div>
+      <div class="fields">
+        <div><label>Vitesse mm/min</label><input class="mini sp" type="number" value="${l.speed}" min="1"></div>
+        <div><label>Puissance %</label><input class="mini pw" type="number" value="${l.power}" min="1" max="100"></div>
+        <div><label>Passes</label><input class="mini ps" type="number" value="${l.passes}" min="1" max="50"></div>
+        <div><label>Formes</label><input class="mini cnt" value="${doc.shapes.filter(s => s.layer === l.id).length}" disabled></div>
+      </div>`;
+    d.querySelector("[type=color]").oninput = e => { l.color = e.target.value; draw(); };
+    d.querySelector(".name").oninput = e => { l.name = e.target.value; };
+    d.querySelector(".sp").oninput = e => { l.speed = +e.target.value || 1000; };
+    d.querySelector(".pw").oninput = e => { l.power = Math.min(100, +e.target.value || 1); };
+    d.querySelector(".ps").oninput = e => { l.passes = Math.max(1, +e.target.value || 1); };
+    d.querySelector(".mode").onclick = e => {
+      e.stopPropagation();
+      l.mode = l.mode === "cut" ? "engrave" : "cut";
+      renderLayers();
+    };
+    d.ondblclick = () => { if (doc.layers.length > 1 && confirm(`Supprimer le calque « ${l.name} » et ses formes ?`)) {
+      snapshot(); doc.shapes = doc.shapes.filter(s => s.layer !== l.id);
+      doc.layers = doc.layers.filter(x => x !== l); if (selLayer === l) selLayer = null;
+      renderLayers(); draw(); } };
+    d.onclick = () => { selLayer = l; renderLayers(); };
+    c.appendChild(d);
+  });
+}
+$("btnAddLayer").onclick = () => {
+  snapshot();
+  const l = { id: doc.nextLayerId++, name: "Calque " + doc.layers.length, color: ["#3ddc84","#ffb02b","#b967ff","#ff6a2b"][doc.layers.length % 4], mode: "cut", speed: 1000, power: 80, passes: 1 };
+  doc.layers.push(l); selLayer = l; renderLayers();
+};
+
+/* ═══════════════════════ PROPRIÉTÉS ═══════════════════════ */
+function renderProps() {
+  const c = $("props");
+  if (!selShape) { c.innerHTML = '<p style="color:var(--muted)">Aucune sélection</p>'; return; }
+  const s = selShape, b = shapeBBox(s);
+  const opt = doc.layers.map(l => `<option value="${l.id}" ${l.id === s.layer ? "selected" : ""}>${l.name}</option>`).join("");
+  let rows = `
+    <div class="fld"><label>Calque</label><select id="pLayer">${opt}</select></div>
+    <div class="fld"><label>X (mm)</label><input type="number" id="pX" step="any" value="${b.x.toFixed(2)}"></div>
+    <div class="fld"><label>Y (mm)</label><input type="number" id="pY" step="any" value="${b.y.toFixed(2)}"></div>
+    <div class="fld"><label>L (mm)</label><input type="number" id="pW" step="any" value="${b.w.toFixed(2)}"></div>
+    <div class="fld"><label>H (mm)</label><input type="number" id="pH" step="any" value="${b.h.toFixed(2)}"></div>`;
+  if (s.type === "text") rows += `
+    <div class="fld"><label>Texte</label><input id="pTxt" value="${s.text.replace(/"/g, "&quot;")}"></div>
+    <div class="fld"><label>Taille (mm)</label><input type="number" id="pSize" step="any" value="${s.size}"></div>`;
+  c.innerHTML = rows;
+  const redraw = () => { draw(); };
+  $("pLayer").onchange = e => { s.layer = +e.target.value; draw(); renderLayers(); };
+  const moveResize = () => {
+    const nx = +$("pX").value, ny = +$("pY").value, nw = +$("pW").value, nh = +$("pH").value;
+    const ob = b;
+    if (s.type === "rect") { s.x = nx; s.y = ny; s.w = Math.max(0.1, nw); s.h = Math.max(0.1, nh); }
+    else if (s.type === "ellipse") { s.cx = nx + nw / 2; s.cy = ny + nh / 2; s.rx = Math.max(0.1, nw / 2); s.ry = Math.max(0.1, nh / 2); }
+    else if (s.type === "line" || s.type === "poly") {
+      const sx = ob.w ? nw / ob.w : 1, sy = ob.h ? nh / ob.h : 1;
+      s.pts = s.pts.map(p => [nx + (p[0] - ob.x) * sx, ny + (p[1] - ob.y) * sy]);
+    } else if (s.type === "text") { s.x = nx; s.y = ny + s.size; s.size = Math.max(1, nh * 0.85); }
+    redraw();
+  };
+  ["pX", "pY", "pW", "pH"].forEach(id => $(id).oninput = moveResize);
+  if (s.type === "text") {
+    $("pTxt").oninput = e => { s.text = e.target.value; redraw(); };
+    $("pSize").oninput = e => { s.size = +e.target.value || 10; redraw(); };
+  }
+}
+
+/* ═══════════════════════ IMPORT SVG ═══════════════════════ */
+function importSvg(text, name) {
+  snapshot();
+  const dom = new DOMParser().parseFromString(text, "image/svg+xml");
+  const svg = dom.querySelector("svg");
+  if (!svg) { alert("SVG invalide"); return; }
+  const vb = (svg.getAttribute("viewBox") || "0 0 100 100").split(/[\s,]+/).map(Number);
+  const w = parseFloat(svg.getAttribute("width")) || vb[2], h = parseFloat(svg.getAttribute("height")) || vb[3];
+  const sx = w / vb[2], sy = h / vb[3];
+  const layer = selLayer || doc.layers[0];
+  const shapes = [];
+  const map = (x, y) => [ (vb[0] + x * sx), doc.bedH - (vb[1] + y * sy) ]; // flip Y → origine bas-gauche
+  const push = pts => { if (pts.length > 1) shapes.push({ type: "poly", pts, closed: false, layer: layer.id }); };
+  svg.querySelectorAll("path").forEach(p => {
+    const d = p.getAttribute("d") || ""; let i = 0, cx = 0, cy = 0, pts = [];
+    const num = () => { while (d[i] === "," || d[i] === " ") i++;
+      let s = i; if (d[i] === "-" || d[i] === "+") i++;
+      while (i < d.length && /[0-9.eE]/.test(d[i])) i++;
+      return parseFloat(d.slice(s, i)); };
+    let cmd = "";
+    const rel = () => cmd === cmd.toLowerCase();
+    while (i < d.length) {
+      const c = d[i];
+      if (/[a-zA-Z]/.test(c)) { cmd = c; i++; }
+      const R = rel();
+      switch (cmd.toLowerCase()) {
+        case "m": { let x = num(), y = num(); if (R) { x += cx; y += cy; } cx = x; cy = y; pts.push(map(x, y)); cmd = R ? "l" : "L"; break; }
+        case "l": { let x = num(), y = num(); if (R) { x += cx; y += cy; } cx = x; cy = y; pts.push(map(x, y)); break; }
+        case "h": { let x = num(); if (R) x += cx; cx = x; pts.push(map(x, cy)); break; }
+        case "v": { let y = num(); if (R) y += cy; cy = y; pts.push(map(cx, y)); break; }
+        case "c": { // flatten cubic bezier
+          let x1 = num(), y1 = num(), x2 = num(), y2 = num(), x = num(), y = num();
+          if (R) { x1 += cx; y1 += cy; x2 += cx; y2 += cy; x += cx; y += cy; }
+          for (let t = 0.1; t <= 1.001; t += 0.1) {
+            const mt = 1 - t;
+            const bx = mt*mt*mt*cx + 3*mt*mt*t*x1 + 3*mt*t*t*x2 + t*t*t*x;
+            const by = mt*mt*mt*cy + 3*mt*mt*t*y1 + 3*mt*t*t*y2 + t*t*t*y;
+            pts.push(map(bx, by));
+          }
+          cx = x; cy = y; break; }
+        case "q": { let x1 = num(), y1 = num(), x = num(), y = num();
+          if (R) { x1 += cx; y1 += cy; x += cx; y += cy; }
+          for (let t = 0.1; t <= 1.001; t += 0.1) {
+            const mt = 1 - t;
+            pts.push(map(mt*mt*cx + 2*mt*t*x1 + t*t*x, mt*mt*cy + 2*mt*t*y1 + t*t*y));
+          }
+          cx = x; cy = y; break; }
+        case "z": { if (pts.length > 1) { pts.push(pts[0]); push(pts); pts = []; } break; }
+        default: if (/[0-9]/.test(c)) { i++; } else i++;
+      }
+    }
+    push(pts);
+  });
+  svg.querySelectorAll("rect").forEach(r => {
+    const x = +r.getAttribute("x") || 0, y = +r.getAttribute("y") || 0;
+    const rw = +r.getAttribute("width"), rh = +r.getAttribute("height");
+    const p = [map(x, y), map(x + rw, y), map(x + rw, y + rh), map(x, y + rh), map(x, y)];
+    shapes.push({ type: "poly", pts: p, closed: true, layer: layer.id });
+  });
+  svg.querySelectorAll("circle").forEach(c0 => {
+    const cx = +c0.getAttribute("cx"), cy = +c0.getAttribute("cy"), r = +c0.getAttribute("r");
+    const pts = []; for (let a = 0; a <= 6.3; a += 0.2) pts.push(map(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+    shapes.push({ type: "poly", pts, closed: true, layer: layer.id });
+  });
+  svg.querySelectorAll("ellipse").forEach(e0 => {
+    const cx = +e0.getAttribute("cx"), cy = +e0.getAttribute("cy");
+    const rx = +e0.getAttribute("rx"), ry = +e0.getAttribute("ry");
+    const pts = []; for (let a = 0; a <= 6.3; a += 0.2) pts.push(map(cx + rx * Math.cos(a), cy + ry * Math.sin(a)));
+    shapes.push({ type: "poly", pts, closed: true, layer: layer.id });
+  });
+  svg.querySelectorAll("line").forEach(l0 => {
+    shapes.push({ type: "line", pts: [map(+l0.getAttribute("x1"), +l0.getAttribute("y1")),
+      map(+l0.getAttribute("x2"), +l0.getAttribute("y2"))], layer: layer.id });
+  });
+  svg.querySelectorAll("polyline,polygon").forEach(pl => {
+    const n = (pl.getAttribute("points") || "").trim().split(/[\s,]+/).map(Number);
+    const pts = []; for (let k = 0; k + 1 < n.length; k += 2) pts.push(map(n[k], n[k + 1]));
+    if (pl.tagName.toLowerCase() === "polygon") pts.push(pts[0]);
+    shapes.push({ type: "poly", pts, closed: pl.tagName.toLowerCase() === "polygon", layer: layer.id });
+  });
+  doc.shapes.push(...shapes);
+  // centrer la vue sur l'import
+  const xs = shapes.flatMap(s => s.pts.map(p => p[0])), ys = shapes.flatMap(s => s.pts.map(p => p[1]));
+  if (xs.length) fitView(Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  draw(); renderLayers();
+  log(`SVG « ${name} » importé : ${shapes.length} tracés`, "ok");
+}
+function fitView(x, y, w, h) {
+  const r = cv.getBoundingClientRect();
+  view.scale = Math.min(40, Math.max(0.2, Math.min((r.width - 60) / Math.max(w, 1), (r.height - 60) / Math.max(h, 1))));
+  view.x = (r.width - w * view.scale) / 2 - x * view.scale;
+  view.y = (r.height - h * view.scale) / 2 - y * view.scale;
+}
+const fileInput = $("fileSvg");
+fileInput.onchange = e => { const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => importSvg(t, f.name)); fileInput.value = ""; };
+const wrap = $("canvasWrap"), dropHint = $("dropHint");
+wrap.addEventListener("dragover", e => { e.preventDefault(); dropHint.style.display = "flex"; });
+wrap.addEventListener("dragleave", () => dropHint.style.display = "none");
+wrap.addEventListener("drop", e => { e.preventDefault(); dropHint.style.display = "none";
+  const f = e.dataTransfer.files[0]; if (f && f.name.endsWith(".svg")) f.text().then(t => importSvg(t, f.name)); });
+
+/* ═══════════════════════ G-CODE ═══════════════════════ */
+function generateGcode() {
+  const sMax = +$("sMax").value || 1000;
+  const g = [];
+  g.push("; Généré par Laser Studio — " + new Date().toISOString());
+  g.push("G21 ; mm", "G90 ; absolu", "M4 ; laser dynamique", "F3000");
+  for (const layer of doc.layers) {
+    const shapes = doc.shapes.filter(s => s.layer === layer.id);
+    if (!shapes.length) continue;
+    const S = Math.round(layer.power / 100 * sMax * 100) / 100;
+    g.push(`; ── Calque ${layer.name} : ${layer.mode}, F${layer.speed}, S${S}, ${layer.passes} passe(s)`);
+    for (let p = 0; p < layer.passes; p++) {
+      for (const s of shapes) {
+        if (s.type === "text") continue; // texte non converti
+        const paths = s.type === "line" ? [s.pts] : [s.type === "poly" ? s.pts : polyOf(s)];
+        for (const pts of paths) {
+          if (!pts || pts.length < 2) continue;
+          const [x0, y0] = pts[0];
+          g.push(`G0 X${x0.toFixed(3)} Y${y0.toFixed(3)} F3000`);
+          for (let i = 1; i < pts.length; i++)
+            g.push(`G1 X${pts[i][0].toFixed(3)} Y${pts[i][1].toFixed(3)} F${layer.speed} S${S}`);
+        }
+      }
+    }
+  }
+  g.push("M5 ; laser off", "G0 X0 Y0", "; fin");
+  const skipped = doc.shapes.filter(s => s.type === "text").length;
+  if (skipped) log(`${skipped} texte(s) ignoré(s) dans le G-code (aperçu seulement).`, "err");
+  return g.join("\n");
+}
+function polyOf(s) {
+  if (s.type === "rect") return [[s.x, s.y], [s.x + s.w, s.y], [s.x + s.w, s.y + s.h], [s.x, s.y + s.h], [s.x, s.y]];
+  if (s.type === "ellipse") {
+    const pts = [];
+    for (let a = 0; a <= 6.3; a += 0.15) pts.push([s.cx + s.rx * Math.cos(a), s.cy + s.ry * Math.sin(a)]);
+    return pts;
+  }
+  return null;
+}
+$("btnGenGcode").onclick = () => {
+  const g = generateGcode();
+  const blob = new Blob([g], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "laser-studio.nc"; a.click();
+  log(`G-code exporté (${g.split("\n").length} lignes)`, "ok");
+};
+$("btnFrame").onclick = () => {
+  const b = docBBox();
+  if (!b) { alert("Aucune forme à cadrer."); return; }
+  const frame = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h], [b.x, b.y]];
+  const sMax = +$("sMax").value || 1000;
+  const g = ["; cadrage", "G21", "G90", "M3 S" + Math.round(sMax * 0.03), "F3000"];
+  frame.forEach((p, i) => g.push((i ? "G1" : "G0") + ` X${p[0].toFixed(2)} Y${p[1].toFixed(2)}`));
+  g.push("M5");
+  if (connected) sendLines(g); else log("Cadrage : connectez la machine (ou générez le G-code).", "err");
+};
+function docBBox() {
+  if (!doc.shapes.length) return null;
+  const bs = doc.shapes.map(shapeBBox);
+  const x = Math.min(...bs.map(b => b.x)), y = Math.min(...bs.map(b => b.y));
+  return { x, y, w: Math.max(...bs.map(b => b.x + b.w)) - x, h: Math.max(...bs.map(b => b.y + b.h)) - y };
+}
+
+/* ═══════════════════════ SAUVEGARDE ═══════════════════════ */
+$("btnSave").onclick = () => {
+  const blob = new Blob([JSON.stringify(doc, null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "projet-laser-studio.json"; a.click();
+};
+$("btnNew").onclick = () => { if (confirm("Effacer le projet en cours ?")) {
+  snapshot(); doc.shapes = []; selShape = null; renderProps(); draw(); } };
+$("btnUndo").onclick = undo;
+$("btnDelete").onclick = () => { if (selShape) {
+  snapshot(); doc.shapes = doc.shapes.filter(s => s !== selShape); selShape = null; renderProps(); draw(); } };
+$("bedW").oninput = e => { doc.bedW = Math.max(10, +e.target.value || 400); draw(); };
+$("bedH").oninput = e => { doc.bedH = Math.max(10, +e.target.value || 400); draw(); };
+
+/* ═══════════════════════ SERIAL / GRBL ═══════════════════════ */
+let port = null, reader = null, writer = null, connected = false, keepReading = false;
+let sendQueue = [], sending = false, machinePos = null, machineState = "";
+const con = $("console");
+function log(msg, cls = "") {
+  const d = document.createElement("div"); d.className = cls; d.textContent = msg;
+  con.appendChild(d); con.scrollTop = con.scrollHeight;
+  while (con.children.length > 300) con.firstChild.remove();
+}
+$("btnConnect").onclick = async () => {
+  if (connected) { keepReading = false; try { await reader?.cancel(); } catch {} return; }
+  if (!("serial" in navigator)) { alert("Web Serial non supporté. Utilisez Chrome ou Edge (desktop)."); return; }
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    writer = port.writable.getWriter();
+    connected = true; keepReading = true;
+    $("btnConnect").textContent = "⛔ Déconnecter";
+    $("machineStatus").innerHTML = 'Machine : <b style="color:var(--ok)">connectée</b>';
+    log("Port série ouvert (115200 bauds).", "ok");
+    readLoop();
+    setTimeout(() => sendRaw("\n"), 300);          // wake GRBL
+    setTimeout(() => sendRaw("$I\n"), 600);        // info
+    setInterval(pollStatus, 250);
+  } catch (err) { log("Connexion impossible : " + err.message, "err"); }
+};
+async function readLoop() {
+  const dec = new TextDecoderStream();
+  port.readable.pipeTo(dec.writable).catch(() => {});
+  reader = dec.readable.getReader();
+  let buf = "";
+  try {
+    while (keepReading) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let idx;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
+        if (!line) continue;
+        if (line.startsWith("<")) parseStatus(line);
+        else if (line === "ok") { sending = false; pump(); }
+        else if (line.startsWith("error")) { sending = false; pump(); log(line, "err"); }
+        else log(line, "ok");
+      }
+    }
+  } catch (e) { if (keepReading) log("Lecture interrompue : " + e.message, "err"); }
+  connected = false; keepReading = false;
+  try { writer?.releaseLock(); port?.close(); } catch {}
+  $("btnConnect").textContent = "🔌 Connecter (USB / Web Serial)";
+  $("machineStatus").innerHTML = "Machine : <b>non connectée</b>";
+  log("Déconnecté.", "");
+}
+function parseStatus(line) {
+  const m = line.match(/^<(\w+)[^|]*\|.*?MPos:([-\d.]+),([-\d.]+)/);
+  if (m) {
+    machineState = m[1]; machinePos = [+m[2], +m[3]];
+    $("machineStatus").innerHTML =
+      `Machine : <b style="color:var(--ok)">${m[1]}</b> · X ${machinePos[0].toFixed(1)} Y ${machinePos[1].toFixed(1)}`;
+  }
+}
+function pollStatus() { if (connected) sendRaw("?\n"); }
+function sendRaw(s) { if (writer) writer.write(new TextEncoder().encode(s)); }
+async function pump() {
+  if (sending || !sendQueue.length) return;
+  sending = true;
+  const line = sendQueue.shift();
+  log("> " + line, "sent");
+  sendRaw(line + "\n");
+}
+function sendLines(lines) { sendQueue.push(...lines); pump(); }
+setInterval(() => { if (connected && !sending && sendQueue.length) pump(); }, 20);
+
+$("btnRun").onclick = () => {
+  if (!connected) { alert("Connectez d'abord la machine."); return; }
+  if (sendQueue.length) { alert("Une tâche est déjà en cours."); return; }
+  const g = generateGcode().split("\n").filter(l => l && !l.startsWith(";"));
+  if (!g.length) { alert("Rien à usiner."); return; }
+  if (!confirm(`Lancer l'usinage (${g.length} lignes) ?\nLunettes de protection !`)) return;
+  sendLines(g);
+};
+$("btnStop").onclick = () => { sendQueue = []; sendRaw("!\n"); log("Stop demandé (!). Réarmez avec ~ puis $X si besoin.", "err"); };
+$("btnHome").onclick = () => { if (connected) sendRaw("$H\n"); log("Homing ($H)…", "sent"); };
+document.querySelectorAll("[data-jog]").forEach(b => b.onclick = () => {
+  const [dx, dy] = b.dataset.jog.split(",").map(Number);
+  if (!connected) return;
+  if (dx === 0 && dy === 0) { sendRaw("G90\nG0 X0 Y0 F3000\n"); return; }
+  const d = +$("jogDist").value || 10;
+  sendRaw(`$J=G91 G21 X${(dx * d)} Y${(dy * d)} F3000\n`);
+});
+
+/* ═══════════════════════ DÉMO + INIT ═══════════════════════ */
+function demoProject() {
+  doc.shapes.push(
+    { id: uid(), type: "rect", x: 20, y: 20, w: 60, h: 40, layer: 1 },
+    { id: uid(), type: "ellipse", cx: 130, cy: 40, rx: 20, ry: 20, layer: 1 },
+    { id: uid(), type: "text", x: 20, y: 90, text: "LASER STUDIO", size: 14, layer: 2 },
+  );
+}
+demoProject();
+selLayer = doc.layers[0];
+setTool("select");
+resize();
+renderLayers();
+fitView(0, 0, doc.bedW, doc.bedH);
+log("Prêt. Connectez votre machine GRBL ou générez le G-code.", "ok");
+</script>
+</body>
+</html>
